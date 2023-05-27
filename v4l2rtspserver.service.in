@@ -1,0 +1,13 @@
+[Unit]
+Description=V4L2 RTSP server
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+ExecStart=@CMAKE_INSTALL_PREFIX@/bin/@PROJECT_NAME@ -S1
+WorkingDirectory=@CMAKE_INSTALL_PREFIX@/share/@PROJECT_NAME@
+
+[Install]
+WantedBy=multi-user.target
