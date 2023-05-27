@@ -14,6 +14,7 @@
 #include <glob.h>
 #include <unistd.h>
 
+#ifdef BUILD_GETRECORDEDFILES
 
 static const char *kDateFileMask = "\?\?\?\?-\?\?-\?\?_\?\?-\?\?-\?\?.mkv";
 
@@ -88,7 +89,6 @@ void printFiles(const char *archDate)
     }
 }
 
-#ifdef BUILD_GETRECORDEDFILES
 
 int main(int argc, char *argv[]) 
 {
