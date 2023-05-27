@@ -80,13 +80,13 @@ unsigned long ALSACapture::getBufferSize()
 }	
 
 
-unsigned long ALSACapture::getSampleRate()   
+int ALSACapture::getSampleRate()   
 { 
 	return 8000; 
 }
 
 
-unsigned long ALSACapture::getChannels()   
+int ALSACapture::getChannels()   
 {
 	 return 1;   
 }

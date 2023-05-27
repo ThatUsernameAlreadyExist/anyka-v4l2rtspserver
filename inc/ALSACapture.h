@@ -50,16 +50,18 @@ class ALSACapture  : public DeviceInterface
 		virtual int getFd();
 		virtual unsigned long getBufferSize();
 		
-		virtual unsigned long getSampleRate();
-		virtual unsigned long getChannels  ();
-		virtual int           getAudioFormat ();
-		
+		virtual int getSampleRate();
+		virtual int getChannels  ();
+		virtual int getAudioFormat ();
+		virtual std::list<int> getAudioFormatList() { return m_fmtList; }
+
 	private:
 		snd_pcm_t*            m_pcm;
 		unsigned long         m_bufferSize;
 		unsigned long         m_periodSize;
 		ALSACaptureParameters m_params;
 		snd_pcm_format_t      m_fmt;
+		std::list<int>        m_fmtList;
 };
 
 
