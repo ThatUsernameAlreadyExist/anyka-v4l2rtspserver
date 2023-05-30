@@ -101,7 +101,7 @@ bool AnykaEncoderBase::encode()
 }
 
 
-size_t AnykaEncoderBase::getEncodedFrameReadyFd() const
+int AnykaEncoderBase::getEncodedFrameReadyFd() const
 {
     return m_signalFd.getFd();
 }

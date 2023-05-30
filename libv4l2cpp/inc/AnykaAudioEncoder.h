@@ -38,6 +38,8 @@ protected:
 
 private:
 	struct list_head m_streamData;
+    typedef void* (*MemcpyFunc)(void*, const void*, size_t);
+    MemcpyFunc m_memcpy;
 };
 
 

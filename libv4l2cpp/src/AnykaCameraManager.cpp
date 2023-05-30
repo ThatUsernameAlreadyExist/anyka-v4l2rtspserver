@@ -13,6 +13,8 @@
 #include <linux/videodev2.h>
 #include "SharedMemory.h"
 #include "AnykaAudioEncoder.h"
+#include <algorithm>
+#include <map>
 
 extern "C"
 {
@@ -23,14 +25,15 @@ extern "C"
 
 const size_t AnykaCameraManager::kInvalidStreamId = (size_t)-1;
 
-enum StreamId
-{
-	VideoHigh = 0,
-	VideoLow,
-	Audio,
-	STREAMS_COUNT
-};
 
+
+std::map<std::string, StreamId> kStreamNames
+{
+	{"video0", VideoHigh},
+	{"video1", VideoLow},
+	{"audio0", AudioHigh},
+	{"audio1", AudioLow},
+};
 
 AnykaCameraManager::AnykaStream::AnykaStream()
 	: encoder(NULL)
@@ -50,7 +53,8 @@ AnykaCameraManager::AnykaCameraManager()
 
 	m_streams[VideoHigh].encoder = new AnykaVideoEncoder();
 	m_streams[VideoLow].encoder  = new AnykaVideoEncoder();
-	m_streams[Audio].encoder	 = new AnykaAudioEncoder();
+	m_streams[AudioHigh].encoder = new AnykaAudioEncoder();
+	m_streams[AudioLow].encoder  = new AnykaAudioEncoder();
 
 	initVideoDevice();
 	initAudioDevice();
@@ -86,16 +90,11 @@ size_t AnykaCameraManager::startStream(const std::string &name)
 
 	if (m_videoDevice != NULL && name.size() > 0)
 	{
-		const size_t id = name == "audio"
-			? 2
-			: name.find('1') != std::string::npos 
-				? 1 
-				: name.find('0') != std::string::npos 
-					? 0 
-					: kInvalidStreamId;
+		const auto it = kStreamNames.find(name);
 
-		if (id != kInvalidStreamId)
+		if (it != kStreamNames.end())
 		{
+			const auto id = it->second;
 			if (!m_streams[id].isActivated)
 			{
 				m_streams[id].isActivated = true;
@@ -139,7 +138,7 @@ void AnykaCameraManager::stopStream(size_t streamId)
 }
 
 
-size_t AnykaCameraManager::getFd(size_t streamId) const
+int AnykaCameraManager::getFd(size_t streamId) const
 {
 	return streamId < STREAMS_COUNT
 		? m_streams[streamId].encoder->getEncodedFrameReadyFd()
@@ -151,9 +150,9 @@ unsigned int AnykaCameraManager::getFormat(size_t streamId)
 {
 	if (streamId == VideoHigh) return V4L2_PIX_FMT_HEVC;
 	else if (streamId == VideoLow) return V4L2_PIX_FMT_H264;
-	else if (streamId == Audio) return 112; // TODO
+	else if (streamId == AudioHigh || streamId == AudioLow) return 1777; // TODO
 	
-	return 0;
+	return -1;
 }
 
 
@@ -259,7 +258,7 @@ bool AnykaCameraManager::stopVideoCapture()
 bool AnykaCameraManager::initAudioDevice()
 {
 	struct pcm_param ai_param = {0};
-	ai_param.sample_bits = 16;
+	ai_param.sample_bits = 16; // Only 16 supported.
 	ai_param.channel_num = 1;
 	ai_param.sample_rate = 8000;
 
@@ -290,7 +289,7 @@ bool AnykaCameraManager::initAudioDevice()
 bool AnykaCameraManager::setAudioParams()
 {
 	ak_ai_set_aec(m_audioDevice, AUDIO_FUNC_DISABLE);
-	ak_ai_set_nr_agc(m_audioDevice, AUDIO_FUNC_ENABLE);
+	ak_ai_set_nr_agc(m_audioDevice, AUDIO_FUNC_DISABLE);
 	ak_ai_set_resample(m_audioDevice, AUDIO_FUNC_DISABLE);
 	ak_ai_set_volume(m_audioDevice, 10); // 0 - 12, 0 - mute
 	ak_ai_clear_frame_buffer(m_audioDevice);
@@ -353,7 +352,8 @@ bool AnykaCameraManager::start()
 {
 	bool retVal = true;
 
-	if (m_streams[VideoHigh].isActivated || m_streams[VideoLow].isActivated || m_streams[Audio].isActivated)
+	if (std::any_of(std::begin(m_streams), std::end(m_streams), 
+			[](const AnykaStream &strm) { return strm.isActivated.load(); }))
 	{
 		if (setVideoParams() && startVideoCapture() && setAudioParams() && startAudioCapture())
 		{
@@ -464,7 +464,14 @@ audio_param AnykaCameraManager::getAudioEncodeParams(size_t streamId)
 {
 	audio_param retVal = {AK_AUDIO_TYPE_UNKNOWN, 0};
 
-	if (streamId == Audio)
+	if (streamId == AudioHigh)
+	{
+		retVal.channel_num = 1;
+		retVal.sample_bits = 16;
+		retVal.sample_rate = 8000;
+		retVal.type = AK_AUDIO_TYPE_PCM;
+	}
+	else if (streamId == AudioLow)
 	{
 		retVal.channel_num = 1;
 		retVal.sample_bits = 16;
@@ -499,11 +506,11 @@ void AnykaCameraManager::processThread()
 
 			if (isStreamsEncoded || isJpegEncoded)
 			{
-				ak_sleep_ms(10);
+				ak_sleep_ms(1);
 			}
 			else
 			{
-				ak_sleep_ms(30);
+				ak_sleep_ms(10);
 			}
 		}
 

@@ -21,10 +21,27 @@ extern "C"
 }
 
 
+static void* memcpySwap16(void *dest, const void *src, size_t n)
+{
+    uint16_t *dest16 = (uint16_t*)dest;
+    const uint16_t *src16 = (const uint16_t*)src;
+    const size_t n16 = n / 2;
+
+    for (size_t i = 0; i < n16; ++i)
+    {
+        *dest16++ = __builtin_bswap16(*src16++);
+    }
+
+    return dest;
+}
+
+
 AnykaAudioEncoder::AnykaAudioEncoder()
+    : m_memcpy(&memcpy)
 {
     INIT_LIST_HEAD(&m_streamData);
 }
+
 
 AnykaAudioEncoder::~AnykaAudioEncoder()
 {
@@ -51,6 +68,10 @@ void AnykaAudioEncoder::onStart(void *device, const audio_param &audioParams)
                 attr.aac_head = AENC_AAC_SAVE_FRAME_HEAD;
                 ak_aenc_set_attr(m_encoder, &attr); 
             }
+
+            m_memcpy = audioParams.type == AK_AUDIO_TYPE_PCM
+                ? &memcpySwap16
+                : &memcpy;
 
             ak_aenc_set_frame_default_interval(m_encoder, 40);
 
@@ -121,14 +142,13 @@ size_t AnykaAudioEncoder::copyNewFrameDataTo(char* buffer, size_t bufferSize)
 
     struct aenc_entry *entry = NULL;
     struct aenc_entry *ptr   = NULL;
-    size_t pos = 0;
 
     list_for_each_entry_safe(entry, ptr, &m_streamData, list) 
     {
         if(entry) 
         {
-            const size_t toCopy = std::min(entry->stream.len, bufferSize - pos);
-            memcpy(buffer + pos, entry->stream.data, toCopy);
+            const size_t toCopy = std::min(entry->stream.len, bufferSize - retVal);
+            m_memcpy(buffer + retVal, entry->stream.data, toCopy);
 
             retVal += toCopy;
 

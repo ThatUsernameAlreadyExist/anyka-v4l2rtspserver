@@ -46,9 +46,9 @@ void ALSACapture::close()
 	
 ALSACapture::ALSACapture(const ALSACaptureParameters & params) : m_pcm((snd_pcm_t*)AnykaCameraManager::kInvalidStreamId), m_bufferSize(0), m_periodSize(0), m_params(params)
 {
-	m_pcm = (snd_pcm_t*)AnykaCameraManager::instance().startStream("audio");
+	m_pcm = (snd_pcm_t*)AnykaCameraManager::instance().startStream(params.m_devName);
 
-	LOG(NOTICE)<<"create ALSACapture with id: "<< (size_t)m_pcm;
+	LOG(NOTICE)<<"create ALSACapture device: "<<params.m_devName<<" with id: "<< (size_t)m_pcm;
 }
 			
 int ALSACapture::configureFormat(snd_pcm_hw_params_t *hw_params) 

@@ -31,6 +31,15 @@ extern "C"
 #define V4L2_PIX_FMT_HEVC  v4l2_fourcc('H', 'E', 'V', 'C')
 #endif
 
+enum StreamId
+{
+	VideoHigh = 0,
+	VideoLow,
+	AudioHigh,
+	AudioLow,
+	STREAMS_COUNT
+};
+
 class AnykaCameraManager
 {
 public:
@@ -46,7 +55,7 @@ public:
 	unsigned int getFormat(size_t streamId);
 	unsigned int getWidth(size_t streamId);      
 	unsigned int getHeight(size_t streamId);     
-	size_t getFd(size_t streamId) const;
+	int getFd(size_t streamId) const;
     size_t getBufferSize(size_t streamId) const;
     size_t getEncodedFrame(size_t streamId, char* buffer, size_t bufferSize);
 
@@ -94,7 +103,7 @@ private:
 	void *m_audioDevice;
 	ak_pthread_t m_threadId;
 	std::atomic_bool m_threadStopFlag;
-	AnykaStream m_streams[3]; // High, Low, Audio
+	AnykaStream m_streams[STREAMS_COUNT];
 	AnykaVideoEncoder m_jpegEncoder;
 
 };
