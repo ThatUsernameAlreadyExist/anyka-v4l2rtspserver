@@ -91,22 +91,39 @@ RTPSink*  BaseServerMediaSubsession::createSink(UsageEnvironment& env, Groupsock
 		videoSink = RawVideoRTPSink::createNew(env, rtpGroupsock, rtpPayloadTypeIfDynamic, device->getWidth(), device->getHeight(), 8, sampling.c_str(),"BT709-2");
     } 
 #endif	
-	else if (format.find("audio/L16") == 0)
+ 	else if (format.find("audio/MPEG") == 0)
+    {
+        videoSink = MPEG1or2AudioRTPSink::createNew(env, rtpGroupsock);
+    }
+	else
 	{
 		std::istringstream is(format);
 		std::string dummy;
 		getline(is, dummy, '/');	
 		getline(is, dummy, '/');	
-		std::string sampleRate("44100");
+		std::string sampleRate("8000");
 		getline(is, sampleRate, '/');	
-		std::string channels("2");
+		std::string channels("1");
 		getline(is, channels);	
-		videoSink = SimpleRTPSink::createNew(env, rtpGroupsock,rtpPayloadTypeIfDynamic, atoi(sampleRate.c_str()), "audio", "L16", atoi(channels.c_str()), True, False); 
+
+		if (format.find("audio/L16") == 0)
+		{
+			videoSink = SimpleRTPSink::createNew(env, rtpGroupsock, rtpPayloadTypeIfDynamic, atoi(sampleRate.c_str()), "audio", "L16", atoi(channels.c_str()), True, False); 
+		}
+		else if (format.find("audio/PCMU") == 0)
+		{
+			videoSink = SimpleRTPSink::createNew(env, rtpGroupsock, rtpPayloadTypeIfDynamic, atoi(sampleRate.c_str()), "audio", "PCMU", atoi(channels.c_str()), True, False); 
+		}
+		else if (format.find("audio/PCMA") == 0)
+		{
+			videoSink = SimpleRTPSink::createNew(env, rtpGroupsock, rtpPayloadTypeIfDynamic, atoi(sampleRate.c_str()), "audio", "PCMA", atoi(channels.c_str()), True, False); 
+		}
+		else if (format.find("audio/AAC") == 0)
+		{
+			videoSink = MPEG4GenericRTPSink::createNew(env, rtpGroupsock, rtpPayloadTypeIfDynamic, atoi(sampleRate.c_str()), "audio", "AAC-hbr", "", atoi(channels.c_str())); 
+		}
 	}
- 	else if (format.find("audio/MPEG") == 0)
-    {
-        videoSink = MPEG1or2AudioRTPSink::createNew(env, rtpGroupsock);
-    }
+
 	return videoSink;
 }
 

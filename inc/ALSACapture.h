@@ -19,6 +19,7 @@
 #include "logger.h"
 
 #include "DeviceInterface.h"
+#include "AnykaCameraManager.h"
 
 struct ALSACaptureParameters 
 {
@@ -53,15 +54,10 @@ class ALSACapture  : public DeviceInterface
 		virtual int getSampleRate();
 		virtual int getChannels  ();
 		virtual int getAudioFormat ();
-		virtual std::list<int> getAudioFormatList() { return m_fmtList; }
+		virtual std::list<int> getAudioFormatList() { return std::list<int>(); }
 
 	private:
-		snd_pcm_t*            m_pcm;
-		unsigned long         m_bufferSize;
-		unsigned long         m_periodSize;
-		ALSACaptureParameters m_params;
-		snd_pcm_format_t      m_fmt;
-		std::list<int>        m_fmtList;
+		size_t deviceId;
 };
 
 

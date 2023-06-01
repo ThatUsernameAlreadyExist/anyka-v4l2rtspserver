@@ -102,6 +102,9 @@ class BaseServerMediaSubsession
                 case SND_PCM_FORMAT_MPEG:
                     os << "MPEG";
                     break;
+                case SND_PCM_FORMAT_AAC:
+                    os << "AAC";
+                    break;
                 default:
                     os << "L16";
                     break;

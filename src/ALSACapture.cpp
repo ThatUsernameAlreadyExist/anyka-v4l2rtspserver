@@ -12,7 +12,6 @@
 ** -------------------------------------------------------------------------*/
 
 #include "ALSACapture.h"
-#include "AnykaCameraManager.h"
 #include "logger.h"
 
 
@@ -37,23 +36,23 @@ ALSACapture::~ALSACapture()
 
 void ALSACapture::close()
 {
-	if ((size_t)m_pcm != AnykaCameraManager::kInvalidStreamId)
+	if (deviceId != AnykaCameraManager::kInvalidStreamId)
 	{
-		AnykaCameraManager::instance().stopStream((size_t)m_pcm);
-		m_pcm = (snd_pcm_t*)AnykaCameraManager::kInvalidStreamId;
+		AnykaCameraManager::instance().stopStream(deviceId);
+		deviceId = AnykaCameraManager::kInvalidStreamId;
 	}
 }
 	
-ALSACapture::ALSACapture(const ALSACaptureParameters & params) : m_pcm((snd_pcm_t*)AnykaCameraManager::kInvalidStreamId), m_bufferSize(0), m_periodSize(0), m_params(params)
+ALSACapture::ALSACapture(const ALSACaptureParameters & params) : deviceId(AnykaCameraManager::kInvalidStreamId)
 {
-	m_pcm = (snd_pcm_t*)AnykaCameraManager::instance().startStream(params.m_devName);
+	deviceId = AnykaCameraManager::instance().startStream(params.m_devName);
 
-	LOG(NOTICE)<<"create ALSACapture device: "<<params.m_devName<<" with id: "<< (size_t)m_pcm;
+	LOG(NOTICE)<<"create ALSACapture device: "<<params.m_devName<<" with id: "<< deviceId;
 }
 			
 int ALSACapture::configureFormat(snd_pcm_hw_params_t *hw_params) 
 {
-	LOG(NOTICE)<<"configureFormat ALSACapture with id: "<< (size_t)m_pcm;
+	LOG(NOTICE)<<"configureFormat ALSACapture with id: "<< deviceId;
 	return 0;
 }
 
@@ -61,9 +60,9 @@ size_t ALSACapture::read(char* buffer, size_t bufferSize)
 {
 	size_t retVal = 0;
 
-	if ((size_t)m_pcm != AnykaCameraManager::kInvalidStreamId)
+	if (deviceId != AnykaCameraManager::kInvalidStreamId)
 	{
-		retVal = AnykaCameraManager::instance().getEncodedFrame((size_t)m_pcm, buffer, bufferSize);
+		retVal = AnykaCameraManager::instance().getEncodedFrame(deviceId, buffer, bufferSize);
 	}
 
 	return retVal;
@@ -71,30 +70,29 @@ size_t ALSACapture::read(char* buffer, size_t bufferSize)
 		
 int ALSACapture::getFd()
 {
-	return AnykaCameraManager::instance().getFd((size_t)m_pcm);
+	return AnykaCameraManager::instance().getFd(deviceId);
 }
 
 unsigned long ALSACapture::getBufferSize()   
 {
-	return AnykaCameraManager::instance().getBufferSize((size_t)m_pcm);     
+	return AnykaCameraManager::instance().getBufferSize(deviceId);     
 }	
 
 
 int ALSACapture::getSampleRate()   
 { 
-	return 8000; 
+	return AnykaCameraManager::instance().getSampleRate(deviceId); 
 }
 
 
 int ALSACapture::getChannels()   
 {
-	 return 1;   
+	return AnykaCameraManager::instance().getChannels(deviceId); 
 }
-
 
 int	ALSACapture::getAudioFormat () 
 { 
-	return AnykaCameraManager::instance().getFormat((size_t)m_pcm);
+	return AnykaCameraManager::instance().getFormat(deviceId);
 }
 		
 // Fake ALSA interface implementation.

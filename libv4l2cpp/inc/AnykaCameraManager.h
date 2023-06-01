@@ -31,6 +31,8 @@ extern "C"
 #define V4L2_PIX_FMT_HEVC  v4l2_fourcc('H', 'E', 'V', 'C')
 #endif
 
+#define SND_PCM_FORMAT_AAC 1999
+
 enum StreamId
 {
 	VideoHigh = 0,
@@ -54,7 +56,9 @@ public:
 
 	unsigned int getFormat(size_t streamId);
 	unsigned int getWidth(size_t streamId);      
-	unsigned int getHeight(size_t streamId);     
+	unsigned int getHeight(size_t streamId);  
+	int getSampleRate(size_t streamId);
+	int getChannels(size_t streamId);   
 	int getFd(size_t streamId) const;
     size_t getBufferSize(size_t streamId) const;
     size_t getEncodedFrame(size_t streamId, char* buffer, size_t bufferSize);

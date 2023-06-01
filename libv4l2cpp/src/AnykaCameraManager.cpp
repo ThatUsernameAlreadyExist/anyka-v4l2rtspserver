@@ -9,6 +9,7 @@
 
 
 #include "AnykaCameraManager.h"
+#include <alsa/asoundlib.h>
 #include "logger.h"
 #include <linux/videodev2.h>
 #include "SharedMemory.h"
@@ -150,7 +151,7 @@ unsigned int AnykaCameraManager::getFormat(size_t streamId)
 {
 	if (streamId == VideoHigh) return V4L2_PIX_FMT_HEVC;
 	else if (streamId == VideoLow) return V4L2_PIX_FMT_H264;
-	else if (streamId == AudioHigh || streamId == AudioLow) return 1777; // TODO
+	else if (streamId == AudioHigh || streamId == AudioLow) return SND_PCM_FORMAT_AAC; // TODO
 	
 	return -1;
 }
@@ -171,6 +172,22 @@ unsigned int AnykaCameraManager::getHeight(size_t streamId)
 	else if (streamId == VideoLow) return 360;
 	
 	return 0;
+}
+
+
+int AnykaCameraManager::getSampleRate(size_t streamId)
+{
+	return streamId == AudioLow || streamId == AudioHigh
+		? 8000
+		: 0; // TODO
+}
+
+
+int AnykaCameraManager::getChannels(size_t streamId)
+{
+	return streamId == AudioLow || streamId == AudioHigh
+		? 1
+		: 0; // TODO
 }
 
 
@@ -296,7 +313,7 @@ bool AnykaCameraManager::setAudioParams()
 
 	int interval = -1;
 	int sampleRate = 8000;
-	int type = AK_AUDIO_TYPE_PCM; // TODO: from config
+	int type = AK_AUDIO_TYPE_AAC; // TODO: from config
 	switch (type) 
     {
         case AK_AUDIO_TYPE_AAC:
@@ -469,14 +486,14 @@ audio_param AnykaCameraManager::getAudioEncodeParams(size_t streamId)
 		retVal.channel_num = 1;
 		retVal.sample_bits = 16;
 		retVal.sample_rate = 8000;
-		retVal.type = AK_AUDIO_TYPE_PCM;
+		retVal.type = AK_AUDIO_TYPE_AAC;
 	}
 	else if (streamId == AudioLow)
 	{
 		retVal.channel_num = 1;
 		retVal.sample_bits = 16;
 		retVal.sample_rate = 8000;
-		retVal.type = AK_AUDIO_TYPE_PCM;
+		retVal.type = AK_AUDIO_TYPE_AAC;
 	}
 
 	return retVal;
