@@ -25,7 +25,82 @@ extern "C"
 }
 
 const size_t AnykaCameraManager::kInvalidStreamId = (size_t)-1;
+const std::string kConfigSensor      = "sensor";
+const std::string kConfigWidth       = "width";
+const std::string kConfigHeight      = "height";
+const std::string kConfigSampleRate  = "samplerate";
+const std::string kConfigChannels    = "channels";
+const std::string kConfigVolume      = "volume";
+const std::string kConfigCodec	     = "codec";
+const std::string kConfigMinQp	     = "minqp";
+const std::string kConfigMaxQp	     = "maxqp";
+const std::string kConfigFps	     = "fps";
+const std::string kConfigGopLen	     = "goplen";
+const std::string kConfigBps	     = "bps";
+const std::string kConfigProfile     = "profile";
+const std::string kConfigBrMode      = "brmode";
+const std::string kConfigJpgFps      = "jpegfps";
 
+const std::map<int, int> kAkCodecToFormatMap
+{
+	{H264_ENC_TYPE, 			V4L2_PIX_FMT_H264},
+	{HEVC_ENC_TYPE, 			V4L2_PIX_FMT_HEVC},
+	{AK_AUDIO_TYPE_AAC, 		SND_PCM_FORMAT_AAC},
+	{AK_AUDIO_TYPE_PCM, 		SND_PCM_FORMAT_S16_LE},
+	{AK_AUDIO_TYPE_PCM_ALAW, 	SND_PCM_FORMAT_A_LAW},
+	{AK_AUDIO_TYPE_PCM_ULAW, 	SND_PCM_FORMAT_MU_LAW}
+};
+
+const size_t kMainAudio = AudioHigh;
+const size_t kMainVideo = VideoHigh;
+
+const std::map<std::string, std::string> kDefaultConfig[STREAMS_COUNT]
+{
+	// VideoHigh
+	{
+		{kConfigSensor    , "/etc/jffs2/isp_f23_mipi2lane.conf"},
+		{kConfigWidth     , "1920"},
+		{kConfigHeight    , "1080"},
+		{kConfigCodec	  , std::to_string(HEVC_ENC_TYPE)}, // 2
+		{kConfigMinQp	  , "20"}, 
+		{kConfigMaxQp	  , "51"}, 
+		{kConfigFps	   	  , "25"},
+		{kConfigGopLen	  , "50"}, 
+		{kConfigBps	   	  , "1500"},
+		{kConfigProfile   , std::to_string(PROFILE_MAIN)}, // 0
+		{kConfigBrMode    , std::to_string(BR_MODE_CBR)}, // 0
+		{kConfigJpgFps    , "1"},
+	},
+
+	// VideoLow
+	{
+		{kConfigWidth     , "640"},
+		{kConfigHeight    , "360"},
+		{kConfigCodec	  , std::to_string(H264_ENC_TYPE)}, // 0
+		{kConfigMinQp	  , "20"}, 
+		{kConfigMaxQp	  , "51"}, 
+		{kConfigFps	   	  , "25"},
+		{kConfigGopLen	  , "50"}, 
+		{kConfigBps	   	  , "500"},
+		{kConfigProfile   , std::to_string(PROFILE_MAIN)}, // 0
+		{kConfigBrMode    , std::to_string(BR_MODE_CBR)}, // 0
+	},
+
+	// AudioHigh
+	{
+		{kConfigSampleRate, "8000"},
+		{kConfigChannels  , "1"},
+		{kConfigVolume    , "10"},
+		{kConfigCodec	  , std::to_string(AK_AUDIO_TYPE_AAC)}, // 4
+	},
+
+	// AudioLow
+	{
+		{kConfigSampleRate, "8000"},
+		{kConfigChannels  , "1"},
+		{kConfigCodec	  , std::to_string(AK_AUDIO_TYPE_PCM_ALAW)}, // 17
+	},
+};
 
 
 std::map<std::string, StreamId> kStreamNames
@@ -35,6 +110,23 @@ std::map<std::string, StreamId> kStreamNames
 	{"audio0", AudioHigh},
 	{"audio1", AudioLow},
 };
+
+
+static void updateDefaultConfig(const std::shared_ptr<ConfigFile> &config)
+{
+	for (size_t i = 0; i < STREAMS_COUNT; ++i)
+	{
+		for (const auto &it: kDefaultConfig[i])
+		{
+			if (!config->hasValue(i, it.first))
+			{
+				LOG(NOTICE)<<"use default config: "<<i<<") "<<it.first<<"="<<it.second;
+				config->setValue(i, it.first, it.second);
+			}
+		}
+	}
+}
+
 
 AnykaCameraManager::AnykaStream::AnykaStream()
 	: encoder(NULL)
@@ -52,10 +144,15 @@ AnykaCameraManager::AnykaCameraManager()
 
 	ak_print_set_level(LOG_LEVEL_NOTICE);
 
-	m_streams[VideoHigh].encoder = new AnykaVideoEncoder();
-	m_streams[VideoLow].encoder  = new AnykaVideoEncoder();
-	m_streams[AudioHigh].encoder = new AnykaAudioEncoder();
-	m_streams[AudioLow].encoder  = new AnykaAudioEncoder();
+	std::shared_ptr<ConfigFile> config = std::make_shared<ConfigFile>(); // TODO: file path
+
+	updateDefaultConfig(config);
+
+	for (size_t i = 0; i < STREAMS_COUNT; ++i)
+	{
+		m_streams[i].encoder = new AnykaVideoEncoder();
+		m_config[i].init(config, i);
+	}
 
 	initVideoDevice();
 	initAudioDevice();
@@ -149,45 +246,50 @@ int AnykaCameraManager::getFd(size_t streamId) const
 
 unsigned int AnykaCameraManager::getFormat(size_t streamId)
 {
-	if (streamId == VideoHigh) return V4L2_PIX_FMT_HEVC;
-	else if (streamId == VideoLow) return V4L2_PIX_FMT_H264;
-	else if (streamId == AudioHigh || streamId == AudioLow) return SND_PCM_FORMAT_AAC; // TODO
-	
-	return -1;
+	unsigned int retVal = -1;
+
+	if (streamId < STREAMS_COUNT)
+	{
+		auto it = kAkCodecToFormatMap.find(m_config[streamId].getValue(kConfigCodec, -1));
+		if (it != kAkCodecToFormatMap.end())
+		{
+			retVal = it->second;
+		}
+	}
+
+	return retVal;
 }
 
 
 unsigned int AnykaCameraManager::getWidth(size_t streamId)
 {
-	if (streamId == VideoHigh) return 1080;
-	else if (streamId == VideoLow) return 640;
-	
-	return 0;
+	return streamId < STREAMS_COUNT
+		? m_config[streamId].getValue<unsigned int>(kConfigWidth, 0)
+		: 0;
 }
 
 
 unsigned int AnykaCameraManager::getHeight(size_t streamId)
 {
-	if (streamId == VideoHigh) return 1080;
-	else if (streamId == VideoLow) return 360;
-	
-	return 0;
+	return streamId < STREAMS_COUNT
+		? m_config[streamId].getValue<unsigned int>(kConfigHeight, 0)
+		: 0;
 }
 
 
 int AnykaCameraManager::getSampleRate(size_t streamId)
 {
-	return streamId == AudioLow || streamId == AudioHigh
-		? 8000
-		: 0; // TODO
+	return streamId < STREAMS_COUNT
+		? m_config[streamId].getValue<unsigned int>(kConfigSampleRate, 0)
+		: 0;
 }
 
 
 int AnykaCameraManager::getChannels(size_t streamId)
 {
-	return streamId == AudioLow || streamId == AudioHigh
-		? 1
-		: 0; // TODO
+	return streamId < STREAMS_COUNT
+		? m_config[streamId].getValue<unsigned int>(kConfigChannels, 0)
+		: 0;
 }
 
 
@@ -209,7 +311,7 @@ size_t AnykaCameraManager::getEncodedFrame(size_t streamId, char* buffer, size_t
 
 bool AnykaCameraManager::initVideoDevice()
 {
-	if (ak_vi_match_sensor("/etc/jffs2/isp_f23_mipi2lane.conf") == AK_SUCCESS)
+	if (ak_vi_match_sensor(m_config[kMainVideo].getValue(kConfigSensor).c_str()) == AK_SUCCESS)
 	{
 		LOG(NOTICE)<<"ak_vi_match_sensor success";
 		m_videoDevice = ak_vi_open(VIDEO_DEV0);
@@ -226,12 +328,10 @@ bool AnykaCameraManager::setVideoParams()
 	struct video_channel_attr attr;
 	memset(&attr, 0, sizeof(struct video_channel_attr));
 
-	// TODO: read from config file
-
-	attr.res[VIDEO_CHN_MAIN].width  = 1920;
-	attr.res[VIDEO_CHN_MAIN].height = 1080;
-	attr.res[VIDEO_CHN_SUB].width   = 640;
-	attr.res[VIDEO_CHN_SUB].height  = 360;
+	attr.res[VIDEO_CHN_MAIN].width  = m_config[VideoHigh].getValue(kConfigWidth,  0);
+	attr.res[VIDEO_CHN_MAIN].height = m_config[VideoHigh].getValue(kConfigHeight, 0);
+	attr.res[VIDEO_CHN_SUB].width   = m_config[VideoLow].getValue(kConfigWidth,   0);
+	attr.res[VIDEO_CHN_SUB].height  = m_config[VideoLow].getValue(kConfigHeight,  0);
 
 	attr.res[VIDEO_CHN_MAIN].max_width  = 1920;
 	attr.res[VIDEO_CHN_MAIN].max_height = 1080;
@@ -245,7 +345,8 @@ bool AnykaCameraManager::setVideoParams()
 
 	bool retVal = false;
 
-	if (ak_vi_set_channel_attr(m_videoDevice, &attr) == AK_SUCCESS && ak_vi_set_fps(m_videoDevice, 25) == AK_SUCCESS) 
+	if (ak_vi_set_channel_attr(m_videoDevice, &attr) == AK_SUCCESS && 
+		ak_vi_set_fps(m_videoDevice, m_config[kMainVideo].getValue(kConfigFps, 0)) == AK_SUCCESS) 
 	{
 		LOG(NOTICE)<<"ak_vi_set_channel_attr && ak_vi_set_fps success";
 		
@@ -276,8 +377,8 @@ bool AnykaCameraManager::initAudioDevice()
 {
 	struct pcm_param ai_param = {0};
 	ai_param.sample_bits = 16; // Only 16 supported.
-	ai_param.channel_num = 1;
-	ai_param.sample_rate = 8000;
+	ai_param.channel_num = m_config[kMainAudio].getValue(kConfigChannels,   0);
+	ai_param.sample_rate = m_config[kMainAudio].getValue(kConfigSampleRate, 0);
 
     m_audioDevice = ak_ai_open(&ai_param);
     if (m_audioDevice != NULL)
@@ -308,12 +409,14 @@ bool AnykaCameraManager::setAudioParams()
 	ak_ai_set_aec(m_audioDevice, AUDIO_FUNC_DISABLE);
 	ak_ai_set_nr_agc(m_audioDevice, AUDIO_FUNC_DISABLE);
 	ak_ai_set_resample(m_audioDevice, AUDIO_FUNC_DISABLE);
-	ak_ai_set_volume(m_audioDevice, 10); // 0 - 12, 0 - mute
+
+	const int volume = m_config[kMainAudio].getValue(kConfigVolume, 10); //0 - 12, 0 - mute
+	ak_ai_set_volume(m_audioDevice, volume);
 	ak_ai_clear_frame_buffer(m_audioDevice);
 
 	int interval = -1;
-	int sampleRate = 8000;
-	int type = AK_AUDIO_TYPE_AAC; // TODO: from config
+	int sampleRate = m_config[kMainAudio].getValue(kConfigSampleRate, 8000);
+	int type = m_config[kMainAudio].getValue(kConfigCodec, AK_AUDIO_TYPE_AAC);
 	switch (type) 
     {
         case AK_AUDIO_TYPE_AAC:
@@ -442,36 +545,18 @@ encode_param AnykaCameraManager::getVideoEncodeParams(size_t streamId)
 {
 	encode_param param = {0};
 
-	if (streamId == VideoHigh)
-	{
-		param.width   		= 1920;
-		param.height  		= 1080;
-		param.minqp   		= 20;
-		param.maxqp   		= 51;
-		param.fps     		= 25;
-		param.goplen  		= param.fps * 2;
-		param.bps     		= 1500;
-		param.profile 		= PROFILE_MAIN;
-		param.use_chn 		= ENCODE_MAIN_CHN;
-		param.enc_grp 		= ENCODE_MAINCHN_NET;
-		param.br_mode 		= BR_MODE_CBR;
-		param.enc_out_type  = HEVC_ENC_TYPE;
-	}
-	else if (streamId == VideoLow)
-	{
-		param.width   		= 640;
-		param.height  		= 360;
-		param.minqp   		= 20;
-		param.maxqp   		= 51;
-		param.fps     		= 25;
-		param.goplen  		= param.fps * 2;
-		param.bps     		= 500;
-		param.profile 		= PROFILE_MAIN;
-		param.use_chn 		= ENCODE_SUB_CHN;
-		param.enc_grp 		= ENCODE_SUBCHN_NET;
-		param.br_mode 		= BR_MODE_CBR;
-		param.enc_out_type 	= H264_ENC_TYPE;
-	}
+	param.width   		= m_config[streamId].getValue(kConfigWidth, 0);
+	param.height  		= m_config[streamId].getValue(kConfigHeight, 0);
+	param.minqp   		= m_config[streamId].getValue(kConfigMinQp, 0);
+	param.maxqp   		= m_config[streamId].getValue(kConfigMaxQp, 0);
+	param.fps     		= m_config[streamId].getValue(kConfigFps, 0);
+	param.goplen  		= m_config[streamId].getValue(kConfigGopLen, 0);
+	param.bps     		= m_config[streamId].getValue(kConfigBps, 0);
+	param.profile 		= (profile_mode) m_config[streamId].getValue(kConfigProfile, 0);
+	param.use_chn 		= streamId == VideoHigh ? ENCODE_MAIN_CHN : ENCODE_SUB_CHN;
+	param.enc_grp 		= streamId == VideoHigh ? ENCODE_MAINCHN_NET : ENCODE_SUBCHN_NET;
+	param.br_mode 		= (bitrate_ctrl_mode) m_config[streamId].getValue(kConfigBrMode, 0);
+	param.enc_out_type  = (encode_output_type) m_config[streamId].getValue(kConfigCodec, 0);
 
 	return param;
 }
@@ -481,20 +566,10 @@ audio_param AnykaCameraManager::getAudioEncodeParams(size_t streamId)
 {
 	audio_param retVal = {AK_AUDIO_TYPE_UNKNOWN, 0};
 
-	if (streamId == AudioHigh)
-	{
-		retVal.channel_num = 1;
-		retVal.sample_bits = 16;
-		retVal.sample_rate = 8000;
-		retVal.type = AK_AUDIO_TYPE_AAC;
-	}
-	else if (streamId == AudioLow)
-	{
-		retVal.channel_num = 1;
-		retVal.sample_bits = 16;
-		retVal.sample_rate = 8000;
-		retVal.type = AK_AUDIO_TYPE_AAC;
-	}
+	retVal.channel_num = m_config[streamId].getValue(kConfigChannels, 0);
+	retVal.sample_bits = 16;
+	retVal.sample_rate = m_config[streamId].getValue(kConfigSampleRate, 0);
+	retVal.type        = (ak_audio_type)m_config[streamId].getValue(kConfigCodec, 0);
 
 	return retVal;
 }
@@ -504,7 +579,7 @@ encode_param AnykaCameraManager::getJpegEncodeParams()
 {
 	encode_param param 	= getVideoEncodeParams(VideoLow); // Use jpeg from low stream.
 
-	param.fps 			= 1;
+	param.fps 			= m_config[kMainVideo].getValue(kConfigJpgFps, 1);
 	param.enc_out_type 	= MJPEG_ENC_TYPE;
 	param.enc_grp 		= ENCODE_PICTURE;
 

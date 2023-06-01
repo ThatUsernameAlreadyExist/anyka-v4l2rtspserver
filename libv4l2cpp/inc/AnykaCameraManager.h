@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <string.h>
 #include "AnykaVideoEncoder.h"
+#include "ConfigFile.h"
 
 extern "C"
 {
@@ -108,6 +109,7 @@ private:
 	ak_pthread_t m_threadId;
 	std::atomic_bool m_threadStopFlag;
 	AnykaStream m_streams[STREAMS_COUNT];
+	ReadOnlyConfigSection m_config[STREAMS_COUNT];
 	AnykaVideoEncoder m_jpegEncoder;
 
 };

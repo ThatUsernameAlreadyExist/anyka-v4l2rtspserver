@@ -42,7 +42,7 @@ ConfigFile::ConfigFile()
 {}
 
 
-ConfigFile::ConfigFile(const std::wstring &path)
+ConfigFile::ConfigFile(const std::string &path)
     : path(path)
     , hasChanges(false)
 {
@@ -107,6 +107,12 @@ const std::string &ConfigFile::getValue(const std::string &section, const std::s
 }
 
 
+bool ConfigFile::hasValue(const std::string &section, const std::string &key) const
+{
+    return !getValue(section, key).empty();
+}
+
+
 void ConfigFile::setValue(const std::string &section, const std::string &key, const std::string &value)
 {
     auto &valueRef = trim(config[trim(section)][trim(key)]);
@@ -124,7 +130,7 @@ void ConfigFile::reload()
 }
 
 
-void ConfigFile::reload(const std::wstring &newPath)
+void ConfigFile::reload(const std::string &newPath)
 {
     path = newPath;
 
@@ -211,10 +217,11 @@ void ConfigFile::save()
 }
 
 
-ReadOnlyConfigSection::ReadOnlyConfigSection(const std::shared_ptr<ConfigFile> &configFile, const std::string &section)
-    : configFile(configFile)
-    , section(section)
-{}
+void ReadOnlyConfigSection::init(const std::shared_ptr<ConfigFile> &configFile, const std::string &section)
+{
+    this->configFile = configFile;
+    this->section = section;
+}
 
 
 const std::string& ReadOnlyConfigSection::getValue(const std::string &key) const

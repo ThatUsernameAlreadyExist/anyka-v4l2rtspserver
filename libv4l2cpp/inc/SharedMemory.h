@@ -20,10 +20,12 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#define MAX_STR_SIZE 256
 
 struct SharedConfig 
 {
     int nightmode;
+    char configFilePath[MAX_STR_SIZE];
 };
 
 

@@ -22,16 +22,20 @@ class ConfigFile
 {
 public:
     ConfigFile();
-    explicit ConfigFile(const std::wstring &path);
+    explicit ConfigFile(const std::string &path);
     virtual ~ConfigFile();
 
     std::vector<std::string> listSections() const;
     std::vector<std::string> listKeys(const std::string &section) const;
     const std::string &getValue(const std::string &section, const std::string &key) const;
+    bool hasValue(const std::string &section, const std::string &key) const;
     void setValue(const std::string &section, const std::string &key, const std::string &value);
 
     template<typename Section, typename Val>
     Val getValue(const Section &section, const std::string &key, const Val &defVal) const;
+
+    template<typename Section>
+    bool hasValue(const Section &section, const std::string &key) const;
 
     template<typename Val>
     Val getValue(const std::string &section, const std::string &key, const Val &defVal) const;
@@ -42,7 +46,7 @@ public:
     template<typename Val>
     void setValue(const std::string &section, const std::string &key, const Val &value);
 
-    void reload(const std::wstring &newPath);
+    void reload(const std::string &newPath);
     void reload();
     void save();
 
@@ -50,7 +54,7 @@ private:
     bool parseLine(const std::string &line, std::string *inOutsection, std::string *outKey, std::string *outValue) const;
 
 private:
-    std::wstring path;
+    std::string path;
     std::map<std::string, std::map<std::string, std::string>> config;
     bool hasChanges;
 
@@ -60,10 +64,10 @@ private:
 class ReadOnlyConfigSection
 {
 public:
-    ReadOnlyConfigSection(const std::shared_ptr<ConfigFile> &configFile, const std::string &section);
+    void init(const std::shared_ptr<ConfigFile> &configFile, const std::string &section);
 
     template<typename Section>
-    ReadOnlyConfigSection(const std::shared_ptr<ConfigFile> &configFile, const Section &section);
+    void init(const std::shared_ptr<ConfigFile> &configFile, const Section &section);
 
     const std::string& getValue(const std::string &key) const;
 
@@ -80,6 +84,13 @@ template<typename Section, typename Val>
 Val ConfigFile::getValue(const Section &section, const std::string &key, const Val &defVal) const
 {
     return getValue(std::to_string(section), key, defVal);
+}
+
+
+template<typename Section>
+bool ConfigFile::hasValue(const Section &section, const std::string &key) const
+{
+    return hasValue(std::to_string(section), key);
 }
 
 
@@ -116,9 +127,11 @@ void ConfigFile::setValue(const std::string &section, const std::string &key, co
 
 
 template<typename Section>
-ReadOnlyConfigSection::ReadOnlyConfigSection(const std::shared_ptr<ConfigFile> &configFile, const Section &section)
-    :ReadOnlyConfigSection(configFile, std::to_string(section))
-{}
+void ReadOnlyConfigSection::init(const std::shared_ptr<ConfigFile> &configFile, const Section &section)
+{
+    this->configFile = configFile;
+    this->section = std::to_string(section);
+}
 
 
 template<typename Val>
