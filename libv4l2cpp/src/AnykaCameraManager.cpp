@@ -150,7 +150,15 @@ AnykaCameraManager::AnykaCameraManager()
 
 	for (size_t i = 0; i < STREAMS_COUNT; ++i)
 	{
-		m_streams[i].encoder = new AnykaVideoEncoder();
+		if (i == VideoHigh || i == VideoLow)
+		{
+			m_streams[i].encoder = new AnykaVideoEncoder();
+		}
+		else
+		{
+			m_streams[i].encoder = new AnykaAudioEncoder();
+		}
+		
 		m_config[i].init(config, i);
 	}
 
