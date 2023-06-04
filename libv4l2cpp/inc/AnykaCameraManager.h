@@ -15,6 +15,7 @@
 #include <string.h>
 #include "AnykaOsd.h"
 #include "AnykaVideoEncoder.h"
+#include "AnykaMotionDetector.h"
 #include "ConfigFile.h"
 
 extern "C"
@@ -103,6 +104,9 @@ private:
 	bool processJpeg();
 	static void* thread(void *arg);
 
+	void startOsd();
+	void startMotionDetection();
+
 
 private:
 	void *m_videoDevice;
@@ -114,6 +118,7 @@ private:
 	ReadOnlyConfigSection m_mainConfig;
 	AnykaVideoEncoder m_jpegEncoder;
 	AnykaOsd m_osd;
+	AnykaMotionDetector m_motionDetect;
 
 };
 

@@ -52,6 +52,14 @@ const std::string kConfigOsdBackColor    = "osdbackcolor";
 const std::string kConfigOsdEdgeColor    = "osdedgecolor";
 const std::string kConfigOsdAlpha        = "osdalpha";
 const std::string kConfigOsdEnabled      = "osdenabled";
+const std::string kConfigMdEnabled		 = "mdenabled";
+const std::string kConfigMdSensitivity   = "mdsens";
+const std::string kConfigMdFps		     = "mdfps";
+const std::string kConfigMdX		     = "mdx";
+const std::string kConfigMdY		     = "mdy";
+const std::string kConfigMdWidth		 = "mdwidth";
+const std::string kConfigMdHeight		 = "mdheight";
+
 
 const std::map<int, int> kAkCodecToFormatMap
 {
@@ -84,6 +92,13 @@ const std::map<std::string, std::string> kDefaultMainConfig
 	{kConfigOsdAlpha   		, "0"},
 	{kConfigOsdEnabled      , "1"},
 	{kConfigOsdText   	    , "%H:%M:%S %d.%m.%Y"},
+	{kConfigMdEnabled       , "1"},
+	{kConfigMdSensitivity   , "60"}, // 1 - 100
+	{kConfigMdFps      		, "10"},
+	{kConfigMdX      	    , "0"},
+	{kConfigMdY             , "0"},
+	{kConfigMdWidth         , "100"},
+	{kConfigMdHeight        , "100"},
 };
 
 
@@ -506,33 +521,13 @@ bool AnykaCameraManager::start()
 
 		if (retVal)
 		{
-			if (m_mainConfig.getValue(kConfigOsdEnabled, 0) != 0)
-			{
-				if (m_osd.start(m_videoDevice, m_mainConfig.getValue(kConfigOsdFontPath), m_mainConfig.getValue(kConfigOsdOrigFontSize, 0)))
-				{
-					const int highHeight = m_config[VideoHigh].getValue(kConfigHeight, 0);
-					const int lowHeight  = m_config[VideoLow].getValue(kConfigHeight, 0);
-					const int lowHighMultiplier = lowHeight > 0 && highHeight > lowHeight
-						? highHeight / lowHeight
-						: 1;
-
-					m_osd.setOsdText(m_mainConfig.getValue(kConfigOsdText));
-					m_osd.setPos(m_videoDevice, m_mainConfig.getValue(kConfigOsdFontSize, 0), m_mainConfig.getValue(kConfigOsdX, 0), 
-						m_mainConfig.getValue(kConfigOsdY, 0), lowHighMultiplier);
-
-					m_osd.setColor(m_mainConfig.getValue(kConfigOsdFrontColor, 0), m_mainConfig.getValue(kConfigOsdBackColor, 0), 
-						m_mainConfig.getValue(kConfigOsdEdgeColor, 0), m_mainConfig.getValue(kConfigOsdAlpha, 0));
-				}
-				else
-				{
-					LOG(ERROR)<<"can't init OSD";
-				}
-			}
-
 			if (!m_jpegEncoder.start(m_videoDevice, NULL, getJpegEncodeParams(), getAudioEncodeParams(0)))
 			{
 				LOG(ERROR)<<"can't init jpeg stream";
 			}
+
+			startOsd();
+			startMotionDetection();
 		}
 		else
 		{
@@ -542,6 +537,48 @@ bool AnykaCameraManager::start()
 	}
 
 	return retVal;
+}
+
+
+void AnykaCameraManager::startOsd()
+{
+	if (m_mainConfig.getValue(kConfigOsdEnabled, 0) != 0)
+	{
+		if (m_osd.start(m_videoDevice, m_mainConfig.getValue(kConfigOsdFontPath), m_mainConfig.getValue(kConfigOsdOrigFontSize, 0)))
+		{
+			const int highHeight = m_config[VideoHigh].getValue(kConfigHeight, 0);
+			const int lowHeight  = m_config[VideoLow].getValue(kConfigHeight, 0);
+			const int lowHighMultiplier = lowHeight > 0 && highHeight > lowHeight
+				? highHeight / lowHeight
+				: 1;
+
+			m_osd.setOsdText(m_mainConfig.getValue(kConfigOsdText));
+			m_osd.setPos(m_videoDevice, m_mainConfig.getValue(kConfigOsdFontSize, 0), m_mainConfig.getValue(kConfigOsdX, 0), 
+				m_mainConfig.getValue(kConfigOsdY, 0), lowHighMultiplier);
+
+			m_osd.setColor(m_mainConfig.getValue(kConfigOsdFrontColor, 0), m_mainConfig.getValue(kConfigOsdBackColor, 0), 
+				m_mainConfig.getValue(kConfigOsdEdgeColor, 0), m_mainConfig.getValue(kConfigOsdAlpha, 0));
+		}
+		else
+		{
+			LOG(ERROR)<<"can't init OSD";
+		}
+	}
+}
+
+
+void AnykaCameraManager::startMotionDetection()
+{
+	if (m_mainConfig.getValue(kConfigMdEnabled, 0) != 0)
+	{
+		if (!m_motionDetect.start(m_videoDevice, 
+				m_mainConfig.getValue(kConfigMdSensitivity, 0), m_mainConfig.getValue(kConfigMdFps, 0),
+				m_mainConfig.getValue(kConfigMdX, 0), m_mainConfig.getValue(kConfigMdY, 0), 
+				m_mainConfig.getValue(kConfigMdWidth, 0), m_mainConfig.getValue(kConfigMdHeight, 0)))
+		{
+			LOG(ERROR)<<"can't init Motion detection";
+		}
+	}
 }
 
 
@@ -555,8 +592,10 @@ void AnykaCameraManager::stop()
 		}
 	}
 
-	m_osd.stop();
 	m_jpegEncoder.stop();
+
+	m_osd.stop();
+	m_motionDetect.stop();
 
 	stopVideoCapture();
 	stopAudioCapture();
@@ -648,6 +687,11 @@ void AnykaCameraManager::processThread()
 			}
 
 			m_osd.update();
+
+			if (m_motionDetect.detect())
+			{
+				LOG(NOTICE)<<",,,, MOTION DETECTED ,,,,,\n\n";
+			}
 		}
 
 		stop();
