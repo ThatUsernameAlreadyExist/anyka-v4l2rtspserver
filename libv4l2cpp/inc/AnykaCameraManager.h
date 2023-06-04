@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include "AnykaOsd.h"
 #include "AnykaVideoEncoder.h"
 #include "ConfigFile.h"
 
@@ -110,7 +111,9 @@ private:
 	std::atomic_bool m_threadStopFlag;
 	AnykaStream m_streams[STREAMS_COUNT];
 	ReadOnlyConfigSection m_config[STREAMS_COUNT];
+	ReadOnlyConfigSection m_mainConfig;
 	AnykaVideoEncoder m_jpegEncoder;
+	AnykaOsd m_osd;
 
 };
 

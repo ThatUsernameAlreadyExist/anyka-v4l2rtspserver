@@ -25,21 +25,33 @@ extern "C"
 }
 
 const size_t AnykaCameraManager::kInvalidStreamId = (size_t)-1;
-const std::string kConfigSensor      = "sensor";
-const std::string kConfigWidth       = "width";
-const std::string kConfigHeight      = "height";
-const std::string kConfigSampleRate  = "samplerate";
-const std::string kConfigChannels    = "channels";
-const std::string kConfigVolume      = "volume";
-const std::string kConfigCodec	     = "codec";
-const std::string kConfigMinQp	     = "minqp";
-const std::string kConfigMaxQp	     = "maxqp";
-const std::string kConfigFps	     = "fps";
-const std::string kConfigGopLen	     = "goplen";
-const std::string kConfigBps	     = "bps";
-const std::string kConfigProfile     = "profile";
-const std::string kConfigBrMode      = "brmode";
-const std::string kConfigJpgFps      = "jpegfps";
+const std::string kConfigSensor      	 = "sensor";
+const std::string kConfigWidth       	 = "width";
+const std::string kConfigHeight      	 = "height";
+const std::string kConfigSampleRate  	 = "samplerate";
+const std::string kConfigSampleInterval  = "sampleinterval";
+const std::string kConfigChannels    	 = "channels";
+const std::string kConfigVolume      	 = "volume";
+const std::string kConfigCodec	     	 = "codec";
+const std::string kConfigMinQp	     	 = "minqp";
+const std::string kConfigMaxQp	     	 = "maxqp";
+const std::string kConfigFps	     	 = "fps";
+const std::string kConfigGopLen	     	 = "goplen";
+const std::string kConfigBps	     	 = "bps";
+const std::string kConfigProfile     	 = "profile";
+const std::string kConfigBrMode      	 = "brmode";
+const std::string kConfigJpgFps      	 = "jpegfps";
+const std::string kConfigOsdFontPath	 = "osdfontpath";
+const std::string kConfigOsdOrigFontSize = "origosdfontsize";
+const std::string kConfigOsdFontSize     = "osdfontsize";
+const std::string kConfigOsdX			 = "osdx";
+const std::string kConfigOsdY			 = "osdy";
+const std::string kConfigOsdText		 = "osdtext";
+const std::string kConfigOsdFrontColor   = "osdfrontcolor";
+const std::string kConfigOsdBackColor    = "osdbackcolor";
+const std::string kConfigOsdEdgeColor    = "osdedgecolor";
+const std::string kConfigOsdAlpha        = "osdalpha";
+const std::string kConfigOsdEnabled      = "osdenabled";
 
 const std::map<int, int> kAkCodecToFormatMap
 {
@@ -51,14 +63,34 @@ const std::map<int, int> kAkCodecToFormatMap
 	{AK_AUDIO_TYPE_PCM_ULAW, 	SND_PCM_FORMAT_MU_LAW}
 };
 
-const size_t kMainAudio = AudioHigh;
-const size_t kMainVideo = VideoHigh;
+
+const std::map<std::string, std::string> kDefaultMainConfig
+{
+	{kConfigSensor    	    , "/etc/jffs2/isp_f23_mipi2lane.conf"},
+	{kConfigFps	   	  	    , "25"},
+	{kConfigJpgFps          , "1"},
+	{kConfigVolume    	    , "10"},
+	{kConfigChannels  	    , "1"},
+	{kConfigSampleRate	    , "8000"},
+	{kConfigSampleInterval  , std::to_string(AUDIO_DEFAULT_INTERVAL)},
+	{kConfigOsdFontPath     , "/usr/local/ak_font_16.bin"},
+	{kConfigOsdOrigFontSize , "16"},
+	{kConfigOsdFontSize     , "16"},
+	{kConfigOsdX   		    , "10"},
+	{kConfigOsdY   		    , "12"},
+	{kConfigOsdFrontColor   , "1"},
+	{kConfigOsdBackColor   	, "0"},
+	{kConfigOsdEdgeColor   	, "2"},
+	{kConfigOsdAlpha   		, "0"},
+	{kConfigOsdEnabled      , "1"},
+	{kConfigOsdText   	    , "%H:%M:%S %d.%m.%Y"},
+};
+
 
 const std::map<std::string, std::string> kDefaultConfig[STREAMS_COUNT]
 {
 	// VideoHigh
 	{
-		{kConfigSensor    , "/etc/jffs2/isp_f23_mipi2lane.conf"},
 		{kConfigWidth     , "1920"},
 		{kConfigHeight    , "1080"},
 		{kConfigCodec	  , std::to_string(HEVC_ENC_TYPE)}, // 2
@@ -69,7 +101,6 @@ const std::map<std::string, std::string> kDefaultConfig[STREAMS_COUNT]
 		{kConfigBps	   	  , "1500"},
 		{kConfigProfile   , std::to_string(PROFILE_MAIN)}, // 0
 		{kConfigBrMode    , std::to_string(BR_MODE_CBR)}, // 0
-		{kConfigJpgFps    , "1"},
 	},
 
 	// VideoLow
@@ -90,7 +121,6 @@ const std::map<std::string, std::string> kDefaultConfig[STREAMS_COUNT]
 	{
 		{kConfigSampleRate, "8000"},
 		{kConfigChannels  , "1"},
-		{kConfigVolume    , "10"},
 		{kConfigCodec	  , std::to_string(AK_AUDIO_TYPE_AAC)}, // 4
 	},
 
@@ -112,19 +142,28 @@ std::map<std::string, StreamId> kStreamNames
 };
 
 
+static void updateDefaultConfigSection(const std::shared_ptr<ConfigFile> &config, 
+	const std::map<std::string, std::string> &defConfig, const std::string &section)
+{
+	for (const auto &it: defConfig)
+	{
+		if (!config->hasValue(section, it.first))
+		{
+			LOG(NOTICE)<<"default config: "<<section<<") "<<it.first<<"="<<it.second;
+			config->setValue(section, it.first, it.second);
+		}
+	}
+}
+
+
 static void updateDefaultConfig(const std::shared_ptr<ConfigFile> &config)
 {
 	for (size_t i = 0; i < STREAMS_COUNT; ++i)
 	{
-		for (const auto &it: kDefaultConfig[i])
-		{
-			if (!config->hasValue(i, it.first))
-			{
-				LOG(NOTICE)<<"use default config: "<<i<<") "<<it.first<<"="<<it.second;
-				config->setValue(i, it.first, it.second);
-			}
-		}
+		updateDefaultConfigSection(config,  kDefaultConfig[i], std::to_string(i));
 	}
+
+	updateDefaultConfigSection(config,  kDefaultMainConfig, std::string());
 }
 
 
@@ -158,9 +197,11 @@ AnykaCameraManager::AnykaCameraManager()
 		{
 			m_streams[i].encoder = new AnykaAudioEncoder();
 		}
-		
+
 		m_config[i].init(config, i);
 	}
+
+	m_mainConfig.init(config, std::string());
 
 	initVideoDevice();
 	initAudioDevice();
@@ -319,7 +360,7 @@ size_t AnykaCameraManager::getEncodedFrame(size_t streamId, char* buffer, size_t
 
 bool AnykaCameraManager::initVideoDevice()
 {
-	if (ak_vi_match_sensor(m_config[kMainVideo].getValue(kConfigSensor).c_str()) == AK_SUCCESS)
+	if (ak_vi_match_sensor(m_mainConfig.getValue(kConfigSensor).c_str()) == AK_SUCCESS)
 	{
 		LOG(NOTICE)<<"ak_vi_match_sensor success";
 		m_videoDevice = ak_vi_open(VIDEO_DEV0);
@@ -354,7 +395,7 @@ bool AnykaCameraManager::setVideoParams()
 	bool retVal = false;
 
 	if (ak_vi_set_channel_attr(m_videoDevice, &attr) == AK_SUCCESS && 
-		ak_vi_set_fps(m_videoDevice, m_config[kMainVideo].getValue(kConfigFps, 0)) == AK_SUCCESS) 
+		ak_vi_set_fps(m_videoDevice, m_mainConfig.getValue(kConfigFps, 0)) == AK_SUCCESS) 
 	{
 		LOG(NOTICE)<<"ak_vi_set_channel_attr && ak_vi_set_fps success";
 		
@@ -385,8 +426,8 @@ bool AnykaCameraManager::initAudioDevice()
 {
 	struct pcm_param ai_param = {0};
 	ai_param.sample_bits = 16; // Only 16 supported.
-	ai_param.channel_num = m_config[kMainAudio].getValue(kConfigChannels,   0);
-	ai_param.sample_rate = m_config[kMainAudio].getValue(kConfigSampleRate, 0);
+	ai_param.channel_num = m_mainConfig.getValue(kConfigChannels,   0);
+	ai_param.sample_rate = m_mainConfig.getValue(kConfigSampleRate, 0);
 
     m_audioDevice = ak_ai_open(&ai_param);
     if (m_audioDevice != NULL)
@@ -418,42 +459,11 @@ bool AnykaCameraManager::setAudioParams()
 	ak_ai_set_nr_agc(m_audioDevice, AUDIO_FUNC_DISABLE);
 	ak_ai_set_resample(m_audioDevice, AUDIO_FUNC_DISABLE);
 
-	const int volume = m_config[kMainAudio].getValue(kConfigVolume, 10); //0 - 12, 0 - mute
+	const int volume = m_mainConfig.getValue(kConfigVolume, 10); //0 - 12, 0 - mute
 	ak_ai_set_volume(m_audioDevice, volume);
 	ak_ai_clear_frame_buffer(m_audioDevice);
 
-	int interval = -1;
-	int sampleRate = m_config[kMainAudio].getValue(kConfigSampleRate, 8000);
-	int type = m_config[kMainAudio].getValue(kConfigCodec, AK_AUDIO_TYPE_AAC);
-	switch (type) 
-    {
-        case AK_AUDIO_TYPE_AAC:
-            interval = ((1024 *1000) / sampleRate); /* 1k data in 1 second */
-            break;
-        case AK_AUDIO_TYPE_AMR:
-            interval = AMR_FRAME_INTERVAL;
-            break;
-        case AK_AUDIO_TYPE_PCM_ALAW:	/* G711, alaw */
-        case AK_AUDIO_TYPE_PCM_ULAW:	/* G711, ulaw */
-            interval = AUDIO_DEFAULT_INTERVAL;
-            break;
-        case AK_AUDIO_TYPE_PCM:
-            interval = AUDIO_DEFAULT_INTERVAL;
-            break;
-        case AK_AUDIO_TYPE_MP3:
-            if (sampleRate >= 8000 && sampleRate <= 24000) 
-            {
-                interval = 576*1000/sampleRate;
-            } 
-            else 
-            { // sample_rate =32000 or 44100 or 48000
-                interval = 1152*1000/sampleRate;
-            }
-            break;
-        default:	
-            interval = AUDIO_DEFAULT_INTERVAL;
-            break;
-	}
+	const int interval = m_mainConfig.getValue(kConfigSampleInterval, AUDIO_DEFAULT_INTERVAL);
 
 	if (ak_ai_set_frame_interval(m_audioDevice, interval) != AK_SUCCESS)
 	{
@@ -496,6 +506,29 @@ bool AnykaCameraManager::start()
 
 		if (retVal)
 		{
+			if (m_mainConfig.getValue(kConfigOsdEnabled, 0) != 0)
+			{
+				if (m_osd.start(m_videoDevice, m_mainConfig.getValue(kConfigOsdFontPath), m_mainConfig.getValue(kConfigOsdOrigFontSize, 0)))
+				{
+					const int highHeight = m_config[VideoHigh].getValue(kConfigHeight, 0);
+					const int lowHeight  = m_config[VideoLow].getValue(kConfigHeight, 0);
+					const int lowHighMultiplier = lowHeight > 0 && highHeight > lowHeight
+						? highHeight / lowHeight
+						: 1;
+
+					m_osd.setOsdText(m_mainConfig.getValue(kConfigOsdText));
+					m_osd.setPos(m_videoDevice, m_mainConfig.getValue(kConfigOsdFontSize, 0), m_mainConfig.getValue(kConfigOsdX, 0), 
+						m_mainConfig.getValue(kConfigOsdY, 0), lowHighMultiplier);
+
+					m_osd.setColor(m_mainConfig.getValue(kConfigOsdFrontColor, 0), m_mainConfig.getValue(kConfigOsdBackColor, 0), 
+						m_mainConfig.getValue(kConfigOsdEdgeColor, 0), m_mainConfig.getValue(kConfigOsdAlpha, 0));
+				}
+				else
+				{
+					LOG(ERROR)<<"can't init OSD";
+				}
+			}
+
 			if (!m_jpegEncoder.start(m_videoDevice, NULL, getJpegEncodeParams(), getAudioEncodeParams(0)))
 			{
 				LOG(ERROR)<<"can't init jpeg stream";
@@ -522,6 +555,7 @@ void AnykaCameraManager::stop()
 		}
 	}
 
+	m_osd.stop();
 	m_jpegEncoder.stop();
 
 	stopVideoCapture();
@@ -587,7 +621,7 @@ encode_param AnykaCameraManager::getJpegEncodeParams()
 {
 	encode_param param 	= getVideoEncodeParams(VideoLow); // Use jpeg from low stream.
 
-	param.fps 			= m_config[kMainVideo].getValue(kConfigJpgFps, 1);
+	param.fps 			= m_mainConfig.getValue(kConfigJpgFps, 1);
 	param.enc_out_type 	= MJPEG_ENC_TYPE;
 	param.enc_grp 		= ENCODE_PICTURE;
 
@@ -612,6 +646,8 @@ void AnykaCameraManager::processThread()
 			{
 				ak_sleep_ms(10);
 			}
+
+			m_osd.update();
 		}
 
 		stop();
