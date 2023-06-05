@@ -16,6 +16,7 @@
 #include "AnykaOsd.h"
 #include "AnykaVideoEncoder.h"
 #include "AnykaMotionDetector.h"
+#include "AnykaDayNight.h"
 #include "ConfigFile.h"
 
 extern "C"
@@ -106,6 +107,7 @@ private:
 
 	void startOsd();
 	void startMotionDetection();
+	void startDayNight();
 
 
 private:
@@ -119,6 +121,7 @@ private:
 	AnykaVideoEncoder m_jpegEncoder;
 	AnykaOsd m_osd;
 	AnykaMotionDetector m_motionDetect;
+	AnykaDayNight m_dayNight;
 
 };
 

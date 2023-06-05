@@ -59,6 +59,10 @@ const std::string kConfigMdX		     = "mdx";
 const std::string kConfigMdY		     = "mdy";
 const std::string kConfigMdWidth		 = "mdwidth";
 const std::string kConfigMdHeight		 = "mdheight";
+const std::string kConfigDayNightMode    = "daynight";
+const std::string kConfigIrLed    		 = "irled";
+const std::string kConfigIrCut    		 = "ircut";
+const std::string kConfigVideoDay 		 = "videoday";
 
 
 const std::map<int, int> kAkCodecToFormatMap
@@ -99,6 +103,10 @@ const std::map<std::string, std::string> kDefaultMainConfig
 	{kConfigMdY             , "0"},
 	{kConfigMdWidth         , "100"},
 	{kConfigMdHeight        , "100"},
+	{kConfigDayNightMode    , "1"},
+	{kConfigIrLed    		, "0"},
+	{kConfigIrCut    		, "1"},
+	{kConfigVideoDay		, "1"},
 };
 
 
@@ -526,6 +534,7 @@ bool AnykaCameraManager::start()
 				LOG(ERROR)<<"can't init jpeg stream";
 			}
 
+			startDayNight();
 			startOsd();
 			startMotionDetection();
 		}
@@ -582,6 +591,22 @@ void AnykaCameraManager::startMotionDetection()
 }
 
 
+void AnykaCameraManager::startDayNight()
+{
+	m_dayNight.start(m_videoDevice);
+
+	const AnykaDayNight::Mode mode = (AnykaDayNight::Mode)m_mainConfig.getValue(kConfigDayNightMode, 0);
+	m_dayNight.setMode(mode);
+
+	if (mode == AnykaDayNight::Disabled)
+	{
+		m_dayNight.setIrCut(m_mainConfig.getValue(kConfigIrCut, 0) == 1);
+		m_dayNight.setIrLed(m_mainConfig.getValue(kConfigIrLed, 0) == 1);
+		m_dayNight.setVideo(m_mainConfig.getValue(kConfigVideoDay, 0) == 1);
+	}
+}
+
+
 void AnykaCameraManager::stop()
 {
 	for (size_t i = 0; i < STREAMS_COUNT; ++i)
@@ -593,7 +618,7 @@ void AnykaCameraManager::stop()
 	}
 
 	m_jpegEncoder.stop();
-
+	m_dayNight.stop();
 	m_osd.stop();
 	m_motionDetect.stop();
 
@@ -687,6 +712,7 @@ void AnykaCameraManager::processThread()
 			}
 
 			m_osd.update();
+			m_dayNight.update();
 
 			if (m_motionDetect.detect())
 			{
