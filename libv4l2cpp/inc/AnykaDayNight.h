@@ -13,6 +13,14 @@
 #define ANYKA_DAY_NIGHT
 
 
+#include <atomic>
+
+extern "C"
+{
+	#include "ak_thread.h" 
+}
+
+
 class AnykaDayNight
 {
 public:
@@ -26,19 +34,38 @@ public:
 
 public:
     AnykaDayNight();
+    ~AnykaDayNight();
 
-    void start(void *videoDevice);
+    void start(void *videoDevice, int minDayToNightLum, int minNightToDayLum, int maxDayToNightAwb, int minNightToDayAwb);
     void stop();
     void setMode(Mode mode);
     void setVideo(bool isDay);
     void setIrLed(bool enable);
     void setIrCut(bool enable);
+    void setPrintInfo(bool enable);
 
-    void update();
+private:
+    void setDay();
+    void setNight();
+
+    void startAutoModeThread();
+    void stopAutoModeThread();
+    void processAutoModeThread();
+    void printCurrentAutoParams();
+
+    static void* thread(void *arg);
 
 private:
     void *m_videoDevice;
-    Mode m_mode;
+    bool m_printInfo;
+    std::atomic<int> m_dayStatus;
+    int m_minDayToNightLum;
+    int m_minNightToDayLum;
+    int m_maxDayToNightAwb;
+    int m_minNightToDayAwb;
+
+    ak_pthread_t m_threadId;
+	std::atomic_bool m_threadStopFlag;
 
 };
 

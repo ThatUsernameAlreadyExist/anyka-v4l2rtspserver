@@ -63,6 +63,11 @@ const std::string kConfigDayNightMode    = "daynight";
 const std::string kConfigIrLed    		 = "irled";
 const std::string kConfigIrCut    		 = "ircut";
 const std::string kConfigVideoDay 		 = "videoday";
+const std::string kConfigDayNightInfo    = "daynightinfo";
+const std::string kConfigDayNightLum     = "daynightlum";
+const std::string kConfigNightDayLum     = "nightdaylum";
+const std::string kConfigDayNightAwb     = "daynightawb";
+const std::string kConfigNightDayAwb     = "nightdayawb";
 
 
 const std::map<int, int> kAkCodecToFormatMap
@@ -103,10 +108,15 @@ const std::map<std::string, std::string> kDefaultMainConfig
 	{kConfigMdY             , "0"},
 	{kConfigMdWidth         , "100"},
 	{kConfigMdHeight        , "100"},
-	{kConfigDayNightMode    , "1"},
+	{kConfigDayNightMode    , "2"},
 	{kConfigIrLed    		, "0"},
 	{kConfigIrCut    		, "1"},
 	{kConfigVideoDay		, "1"},
+	{kConfigDayNightInfo    , "0"},
+	{kConfigDayNightLum		, "6000"},
+	{kConfigNightDayLum		, "2000"},
+	{kConfigDayNightAwb		, "90000"},
+	{kConfigNightDayAwb		, "1200"}
 };
 
 
@@ -593,9 +603,16 @@ void AnykaCameraManager::startMotionDetection()
 
 void AnykaCameraManager::startDayNight()
 {
-	m_dayNight.start(m_videoDevice);
+	m_dayNight.start(m_videoDevice, 
+		m_mainConfig.getValue(kConfigDayNightLum, 0),
+		m_mainConfig.getValue(kConfigNightDayLum, 0),
+		m_mainConfig.getValue(kConfigDayNightAwb, 0),
+		m_mainConfig.getValue(kConfigNightDayAwb, 0));
+
+	m_dayNight.setPrintInfo(m_mainConfig.getValue(kConfigDayNightInfo, 0) == 1);
 
 	const AnykaDayNight::Mode mode = (AnykaDayNight::Mode)m_mainConfig.getValue(kConfigDayNightMode, 0);
+	
 	m_dayNight.setMode(mode);
 
 	if (mode == AnykaDayNight::Disabled)
@@ -643,7 +660,7 @@ bool AnykaCameraManager::restartThread()
 {
 	stopThread();
 
-	return m_videoDevice != NULL && ak_thread_create(&m_threadId, AnykaCameraManager::thread, NULL, 100*1024, 90) == AK_SUCCESS;
+	return m_videoDevice != NULL && ak_thread_create(&m_threadId, AnykaCameraManager::thread, NULL, ANYKA_THREAD_MIN_STACK_SIZE, 90) == AK_SUCCESS;
 }
 
 
@@ -712,11 +729,10 @@ void AnykaCameraManager::processThread()
 			}
 
 			m_osd.update();
-			m_dayNight.update();
 
 			if (m_motionDetect.detect())
 			{
-				LOG(NOTICE)<<",,,, MOTION DETECTED ,,,,,\n\n";
+				//LOG(NOTICE)<<",,,, MOTION DETECTED ,,,,,\n\n";
 			}
 		}
 
@@ -764,11 +780,11 @@ void* AnykaCameraManager::thread(void*)
 {
 	AnykaCameraManager& camMan = AnykaCameraManager::instance();
 
-	LOG(DEBUG)<<"anyka  thread started";
+	LOG(DEBUG)<<"AnykaCameraManager thread started";
 
 	camMan.processThread();
 
-	LOG(DEBUG)<<"anyka thread stopped";
+	LOG(DEBUG)<<"AnykaCameraManager thread stopped";
 
 	ak_thread_exit();
 
