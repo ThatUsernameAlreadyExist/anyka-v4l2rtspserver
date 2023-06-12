@@ -12,7 +12,6 @@
 #include <alsa/asoundlib.h>
 #include "logger.h"
 #include <linux/videodev2.h>
-#include "SharedMemory.h"
 #include "AnykaAudioEncoder.h"
 #include <algorithm>
 #include <map>
@@ -174,6 +173,10 @@ std::map<std::string, StreamId> kStreamNames
 	{"audio1", AudioLow},
 };
 
+const int kSharedConfUpdateCount = 10;
+const int kMaxMotionCount = 5;
+const char* kDefaultConfigName = "anykacam.ini";
+
 
 static void updateDefaultConfigSection(const std::shared_ptr<ConfigFile> &config, 
 	const std::map<std::string, std::string> &defConfig, const std::string &section)
@@ -211,12 +214,22 @@ AnykaCameraManager::AnykaCameraManager()
 	: m_videoDevice(NULL)
 	, m_threadId(0)
 	, m_threadStopFlag(false)
+	, m_currentSharedConfig({0})
+	, m_sharedConfUpdateCounter(-1)
+	, m_lastMotionDetected(false)
+	, m_motionCounter(0)
+	, m_motionDetectionFd(-1)
 {
 	LOG(DEBUG)<<"AnykaCameraManager construct";
 
 	ak_print_set_level(LOG_LEVEL_NOTICE);
 
-	std::shared_ptr<ConfigFile> config = std::make_shared<ConfigFile>(); // TODO: file path
+	const SharedConfig *newSharedConfig = SharedMemory::instance().readConfig();
+
+	std::shared_ptr<ConfigFile> config = std::make_shared<ConfigFile>(
+		newSharedConfig->configFilePath[0] != 0
+			? newSharedConfig->configFilePath
+			: kDefaultConfigName);
 
 	updateDefaultConfig(config);
 
@@ -641,6 +654,16 @@ void AnykaCameraManager::stop()
 
 	stopVideoCapture();
 	stopAudioCapture();
+
+	if (m_motionDetectionFd != -1)
+	{
+		close(m_motionDetectionFd);
+		m_motionDetectionFd = -1;
+	}
+
+	m_lastMotionDetected = false;
+	m_motionCounter = 0;
+	m_sharedConfUpdateCounter = 0;
 }
 	
 
@@ -729,11 +752,8 @@ void AnykaCameraManager::processThread()
 			}
 
 			m_osd.update();
-
-			if (m_motionDetect.detect())
-			{
-				//LOG(NOTICE)<<",,,, MOTION DETECTED ,,,,,\n\n";
-			}
+			processMotionDetection();
+			processSharedConfig();
 		}
 
 		stop();
@@ -773,6 +793,177 @@ bool AnykaCameraManager::processJpeg()
 	}
 
 	return retVal;
+}
+
+
+void AnykaCameraManager::processSharedConfig()
+{
+	const bool isInitialUpdate = m_sharedConfUpdateCounter == -1;
+
+	if (isInitialUpdate || m_sharedConfUpdateCounter++ > kSharedConfUpdateCount)
+	{
+		m_sharedConfUpdateCounter = 0;
+
+		const SharedConfig *newSharedConfig = SharedMemory::instance().readConfig();
+
+		if (newSharedConfig->configFilePath[0] != 0)
+		{
+			if (!isInitialUpdate)
+			{
+				if (newSharedConfig->nightmode   != m_currentSharedConfig.nightmode ||
+					newSharedConfig->dayNightAwb != m_currentSharedConfig.dayNightAwb ||
+					newSharedConfig->dayNightLum != m_currentSharedConfig.dayNightLum ||
+					newSharedConfig->nightDayAwb != m_currentSharedConfig.nightDayAwb ||
+					newSharedConfig->nightDayLum != m_currentSharedConfig.nightDayLum)
+				{
+					m_dayNight.start(m_videoDevice, newSharedConfig->dayNightLum, newSharedConfig->nightDayLum,
+						newSharedConfig->dayNightAwb, newSharedConfig->nightDayAwb);
+
+					m_dayNight.setMode((AnykaDayNight::Mode)newSharedConfig->nightmode);	
+					
+				}
+
+				if (newSharedConfig->motionEnabled != m_currentSharedConfig.motionEnabled ||
+					newSharedConfig->motionSensitivity != m_currentSharedConfig.motionSensitivity)
+				{
+					if (newSharedConfig->motionEnabled)
+					{
+						m_motionDetect.start(m_videoDevice, newSharedConfig->motionSensitivity,
+							m_mainConfig.getValue(kConfigMdFps, 0),
+							m_mainConfig.getValue(kConfigMdX, 0), m_mainConfig.getValue(kConfigMdY, 0), 
+							m_mainConfig.getValue(kConfigMdWidth, 0), m_mainConfig.getValue(kConfigMdHeight, 0));
+					}
+					else
+					{
+						m_motionDetect.stop();
+					}
+				}
+
+				if (newSharedConfig->irCut != m_currentSharedConfig.irCut)
+				{
+					m_dayNight.setIrCut(newSharedConfig->irCut);
+				}
+
+				if (newSharedConfig->irLed != m_currentSharedConfig.irLed)
+				{
+					m_dayNight.setIrLed(newSharedConfig->irLed);
+				}
+
+				if (newSharedConfig->videoDay != m_currentSharedConfig.videoDay)
+				{
+					m_dayNight.setVideo(newSharedConfig->videoDay);
+				}
+
+				if (newSharedConfig->osdEnabled != m_currentSharedConfig.osdEnabled ||
+					newSharedConfig->osdAlpha != m_currentSharedConfig.osdAlpha ||
+					newSharedConfig->osdBackColor != m_currentSharedConfig.osdBackColor ||
+					newSharedConfig->osdEdgeColor != m_currentSharedConfig.osdEdgeColor ||
+					newSharedConfig->osdFontSize != m_currentSharedConfig.osdFontSize ||
+					newSharedConfig->osdFrontColor != m_currentSharedConfig.osdFrontColor ||
+					newSharedConfig->osdX != m_currentSharedConfig.osdX ||
+					newSharedConfig->osdY != m_currentSharedConfig.osdY ||
+					strncmp(newSharedConfig->osdText, m_currentSharedConfig.osdText, MAX_STR_SIZE) != 0)
+				{
+					if (newSharedConfig->osdEnabled && newSharedConfig->osdText[0] != 0)
+					{
+						if (m_osd.start(m_videoDevice, m_mainConfig.getValue(kConfigOsdFontPath), m_mainConfig.getValue(kConfigOsdOrigFontSize, 0)))
+						{
+							const int highHeight = m_config[VideoHigh].getValue(kConfigHeight, 0);
+							const int lowHeight  = m_config[VideoLow].getValue(kConfigHeight, 0);
+							const int lowHighMultiplier = lowHeight > 0 && highHeight > lowHeight
+								? highHeight / lowHeight
+								: 1;
+
+							m_osd.setOsdText(newSharedConfig->osdText);
+							m_osd.setPos(m_videoDevice, newSharedConfig->osdFontSize, newSharedConfig->osdX, 
+								newSharedConfig->osdY, lowHighMultiplier);
+
+							m_osd.setColor(newSharedConfig->osdFrontColor, newSharedConfig->osdBackColor, 
+								newSharedConfig->osdEdgeColor, newSharedConfig->osdAlpha);
+						}
+					}
+					else
+					{
+						m_osd.stop();
+					}
+				}
+			}
+
+			memcpy(&m_currentSharedConfig, newSharedConfig, sizeof(m_currentSharedConfig));
+		}
+	}
+}
+
+
+void AnykaCameraManager::processMotionDetection()
+{
+	if (m_motionDetect.detect())
+	{
+		if (!m_lastMotionDetected)
+		{
+			writeMotionDetectionFlag(true);
+			m_lastMotionDetected = true;
+		}
+
+		m_motionCounter = 0;
+	}
+	else if (m_lastMotionDetected && m_motionCounter++ > kMaxMotionCount)
+	{
+		m_lastMotionDetected = false;
+		m_motionCounter = 0;
+		writeMotionDetectionFlag(false);
+	}
+}
+
+
+void AnykaCameraManager::writeMotionDetectionFlag(bool isMotionDetected)
+{   
+    if (m_motionDetectionFd == -1)
+    {
+        m_motionDetectionFd = open("/tmp/rec_control", O_WRONLY | O_CREAT, 0666);
+        
+        m_motionDetectionLock.l_type = F_WRLCK;
+        m_motionDetectionLock.l_whence = SEEK_SET;
+        m_motionDetectionLock.l_start = 0;
+        m_motionDetectionLock.l_len = 0;
+        m_motionDetectionLock.l_pid = getpid();
+        
+        LOG(INFO) << "Open motion control file /tmp/rec_control: " << m_motionDetectionFd << "\n";
+    }
+    
+    if (m_motionDetectionFd != -1)
+    {
+        m_motionDetectionLock.l_type = F_WRLCK;
+        if (fcntl(m_motionDetectionFd, F_SETLKW, &m_motionDetectionLock) < 0)
+        {
+            LOG(ERROR) << "Lock motion control file /tmp/rec_control FAILED\n";
+        }
+        else
+        {
+            if (lseek(m_motionDetectionFd, 0, SEEK_SET) == 0)
+            {
+                char val = isMotionDetected ? '1' : '0';
+                if (write(m_motionDetectionFd, &val, 1) != 1)
+                {
+                    LOG(ERROR) << "Write to motion control file /tmp/rec_control FAILED\n";
+                }
+                else
+                {
+                    fdatasync(m_motionDetectionFd);
+                }
+            }
+            else
+            {
+                LOG(ERROR) << "Seek motion control file /tmp/rec_control FAILED\n";
+            }
+            
+            m_motionDetectionLock.l_type = F_UNLCK;
+            if (fcntl(m_motionDetectionFd, F_SETLK, &m_motionDetectionLock) < 0)
+            {
+                LOG(ERROR) << "UnLock motion control file /tmp/rec_control FAILED\n";
+            }
+        }
+    }
 }
 
 

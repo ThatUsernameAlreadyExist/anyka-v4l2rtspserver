@@ -25,6 +25,24 @@
 struct SharedConfig 
 {
     int nightmode;
+    int osdFontSize;
+    int osdX;
+    int osdY;
+    int osdFrontColor;
+    int osdBackColor;
+    int osdEdgeColor;
+    int osdAlpha;
+    int motionSensitivity;
+    int dayNightLum;
+    int nightDayLum;
+    int dayNightAwb;
+    int nightDayAwb;
+    bool osdEnabled;
+    bool motionEnabled;
+    bool irLed;
+    bool irCut;
+    bool videoDay;
+    char osdText[MAX_STR_SIZE];
     char configFilePath[MAX_STR_SIZE];
 };
 
@@ -53,8 +71,8 @@ class SharedMemory
 public:
     static SharedMemory& instance();
 
-    SharedConfig *getConfig();
-    void readConfig();
+    SharedConfig* getConfig();
+    SharedConfig* readConfig();
     void writeConfig();
 
     size_t getImageSize();

@@ -90,8 +90,28 @@ SharedMemory::SharedMemory()
     , configReadLock("/tmp/config.lock", false)
     , configWriteLock("/tmp/config.lock", true)
 {
-    currentConfig.nightmode = 0;
-   
+    currentConfig.nightmode         = 2;
+    currentConfig.configFilePath[0] = 0;
+    currentConfig.dayNightAwb       = 9000;
+    currentConfig.dayNightLum       = 6000;
+    currentConfig.irCut             = true;
+    currentConfig.irLed             = false;
+    currentConfig.motionEnabled     = true;
+    currentConfig.motionSensitivity = 60;
+    currentConfig.nightDayAwb       = 1200;
+    currentConfig.nightDayLum       = 2000;
+    currentConfig.nightmode         = 2;
+    currentConfig.osdAlpha          = 0;
+    currentConfig.osdBackColor      = 0;
+    currentConfig.osdEdgeColor      = 2;
+    currentConfig.osdEnabled        = false;
+    currentConfig.osdFontSize       = 16;
+    currentConfig.osdFrontColor     = 1;
+    currentConfig.osdText[0]        = 0; 
+    currentConfig.osdX              = 10;
+    currentConfig.osdY              = 12;
+    currentConfig.videoDay          = true;
+
     keyImageMem  = ftok("/usr/", '1');
     keyConfigMem = ftok("/usr/", '3');
     keyImageSize = ftok("/usr/", '5');
@@ -197,11 +217,13 @@ SharedConfig *SharedMemory::getConfig()
 }
 
 
-void SharedMemory::readConfig()
+SharedConfig* SharedMemory::readConfig()
 {
     this->configReadLock.lock(true);
     this->readMemory(keyConfigMem, &currentConfig, sizeof(SharedConfig));
     this->configReadLock.unlock();
+
+    return getConfig();
 }
 
 

@@ -18,6 +18,7 @@
 #include "AnykaMotionDetector.h"
 #include "AnykaDayNight.h"
 #include "ConfigFile.h"
+#include "SharedMemory.h"
 
 extern "C"
 {
@@ -103,6 +104,9 @@ private:
 	void processThread();
 	bool processEncoding();
 	bool processJpeg();
+	void processSharedConfig();
+	void processMotionDetection();
+	void writeMotionDetectionFlag(bool isMotionDetected);
 	static void* thread(void *arg);
 
 	void startOsd();
@@ -122,6 +126,12 @@ private:
 	AnykaOsd m_osd;
 	AnykaMotionDetector m_motionDetect;
 	AnykaDayNight m_dayNight;
+	SharedConfig m_currentSharedConfig;
+	int m_sharedConfUpdateCounter;
+	bool m_lastMotionDetected;
+	int m_motionCounter;
+	int m_motionDetectionFd;
+	flock m_motionDetectionLock;
 
 };
 
