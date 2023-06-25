@@ -72,6 +72,7 @@ void usage(char *command)
     fprintf(stderr, "\t'y' OSD Y pos\n");
     fprintf(stderr, "\t'h' OSD alpha\n");
     fprintf(stderr, "\t'i' OSD back color\n");
+    fprintf(stderr, "\t'j' OSD edge color\n");
     fprintf(stderr, "\t'l' OSD on/off\n");
     fprintf(stderr, "\t'm' motion detect sensitivity\n");
     fprintf(stderr, "\t'p' motion detect on/off\n");

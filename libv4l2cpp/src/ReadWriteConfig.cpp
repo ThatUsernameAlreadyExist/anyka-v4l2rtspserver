@@ -29,6 +29,7 @@ static void printHelp()
         "   <key name>\n"
         "   <value>\n\n"
         "rwconf \"myconf.ini\" r main mykey\n"
+        "rwconf \"myconf.ini\" r main mykey main mykey2 main mykey3\n"
         "rwconf \"myconf.ini\" w main mykey mynewvalue\n"
         "rwconf \"myconf.ini\" w main mykey mynewvalue main mykey2 mynewvalue2\n"
     );
@@ -45,7 +46,12 @@ int main(int argc, char *argv[])
         if (argv[2][0] == 'r')
         {
             config.reload(std::string(argv[1]));
-            printf("%s\n", config.getValue(std::string(argv[3]), std::string(argv[4])).c_str());
+            for (int i = 3; i <= argc - 2; i += 2)
+            {
+                printf((i == 3 ? "%s" : " %s"), config.getValue(std::string(argv[i]), std::string(argv[i + 1])).c_str());
+            }
+
+            printf("\n");
         }
         else if (argv[2][0] == 'w')
         {
