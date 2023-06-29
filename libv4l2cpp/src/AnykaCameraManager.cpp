@@ -173,7 +173,7 @@ std::map<std::string, StreamId> kStreamNames
 	{"audio1", AudioLow},
 };
 
-const int kSharedConfUpdateCount = 10;
+const int kSharedConfUpdateCount = 20;
 const int kMaxMotionCount = 5;
 const char* kDefaultConfigName = "anykacam.ini";
 
@@ -225,6 +225,7 @@ AnykaCameraManager::AnykaCameraManager()
 	ak_print_set_level(LOG_LEVEL_NOTICE);
 
 	const SharedConfig *newSharedConfig = SharedMemory::instance().readConfig();
+	memcpy(&m_currentSharedConfig, newSharedConfig, sizeof(m_currentSharedConfig));
 
 	std::shared_ptr<ConfigFile> config = std::make_shared<ConfigFile>(
 		newSharedConfig->configFilePath[0] != 0
@@ -663,7 +664,6 @@ void AnykaCameraManager::stop()
 
 	m_lastMotionDetected = false;
 	m_motionCounter = 0;
-	m_sharedConfUpdateCounter = 0;
 }
 	
 
@@ -798,99 +798,90 @@ bool AnykaCameraManager::processJpeg()
 
 void AnykaCameraManager::processSharedConfig()
 {
-	const bool isInitialUpdate = m_sharedConfUpdateCounter == -1;
-
-	if (isInitialUpdate || m_sharedConfUpdateCounter++ > kSharedConfUpdateCount)
+	if (m_sharedConfUpdateCounter++ > kSharedConfUpdateCount)
 	{
 		m_sharedConfUpdateCounter = 0;
 
 		const SharedConfig *newSharedConfig = SharedMemory::instance().readConfig();
 
-		if (newSharedConfig->configFilePath[0] != 0)
+		if (newSharedConfig->nightmode   != m_currentSharedConfig.nightmode ||
+			newSharedConfig->dayNightAwb != m_currentSharedConfig.dayNightAwb ||
+			newSharedConfig->dayNightLum != m_currentSharedConfig.dayNightLum ||
+			newSharedConfig->nightDayAwb != m_currentSharedConfig.nightDayAwb ||
+			newSharedConfig->nightDayLum != m_currentSharedConfig.nightDayLum)
 		{
-			if (!isInitialUpdate)
+			m_dayNight.start(m_videoDevice, newSharedConfig->dayNightLum, newSharedConfig->nightDayLum,
+				newSharedConfig->dayNightAwb, newSharedConfig->nightDayAwb);
+
+			m_dayNight.setMode((AnykaDayNight::Mode)newSharedConfig->nightmode);
+		}
+
+		if (newSharedConfig->motionEnabled != m_currentSharedConfig.motionEnabled ||
+			newSharedConfig->motionSensitivity != m_currentSharedConfig.motionSensitivity)
+		{
+			if (newSharedConfig->motionEnabled)
 			{
-				if (newSharedConfig->nightmode   != m_currentSharedConfig.nightmode ||
-					newSharedConfig->dayNightAwb != m_currentSharedConfig.dayNightAwb ||
-					newSharedConfig->dayNightLum != m_currentSharedConfig.dayNightLum ||
-					newSharedConfig->nightDayAwb != m_currentSharedConfig.nightDayAwb ||
-					newSharedConfig->nightDayLum != m_currentSharedConfig.nightDayLum)
+				m_motionDetect.start(m_videoDevice, newSharedConfig->motionSensitivity,
+					m_mainConfig.getValue(kConfigMdFps, 0),
+					m_mainConfig.getValue(kConfigMdX, 0), m_mainConfig.getValue(kConfigMdY, 0), 
+					m_mainConfig.getValue(kConfigMdWidth, 0), m_mainConfig.getValue(kConfigMdHeight, 0));
+			}
+			else
+			{
+				m_motionDetect.stop();
+			}
+		}
+
+		if (newSharedConfig->irCut != m_currentSharedConfig.irCut)
+		{
+			m_dayNight.setIrCut(newSharedConfig->irCut);
+		}
+
+		if (newSharedConfig->irLed != m_currentSharedConfig.irLed)
+		{
+			m_dayNight.setIrLed(newSharedConfig->irLed);
+		}
+
+		if (newSharedConfig->videoDay != m_currentSharedConfig.videoDay)
+		{
+			m_dayNight.setVideo(newSharedConfig->videoDay);
+		}
+
+		if (newSharedConfig->osdEnabled 	!= m_currentSharedConfig.osdEnabled ||
+			newSharedConfig->osdAlpha 		!= m_currentSharedConfig.osdAlpha ||
+			newSharedConfig->osdBackColor 	!= m_currentSharedConfig.osdBackColor ||
+			newSharedConfig->osdEdgeColor 	!= m_currentSharedConfig.osdEdgeColor ||
+			newSharedConfig->osdFontSize 	!= m_currentSharedConfig.osdFontSize ||
+			newSharedConfig->osdFrontColor 	!= m_currentSharedConfig.osdFrontColor ||
+			newSharedConfig->osdX 			!= m_currentSharedConfig.osdX ||
+			newSharedConfig->osdY 			!= m_currentSharedConfig.osdY ||
+			strncmp(newSharedConfig->osdText, m_currentSharedConfig.osdText, MAX_STR_SIZE) != 0)
+		{
+			if (newSharedConfig->osdEnabled && newSharedConfig->osdText[0] != 0)
+			{
+				if (m_osd.start(m_videoDevice, m_mainConfig.getValue(kConfigOsdFontPath), m_mainConfig.getValue(kConfigOsdOrigFontSize, 0)))
 				{
-					m_dayNight.start(m_videoDevice, newSharedConfig->dayNightLum, newSharedConfig->nightDayLum,
-						newSharedConfig->dayNightAwb, newSharedConfig->nightDayAwb);
+					const int highHeight = m_config[VideoHigh].getValue(kConfigHeight, 0);
+					const int lowHeight  = m_config[VideoLow].getValue(kConfigHeight, 0);
+					const int lowHighMultiplier = lowHeight > 0 && highHeight > lowHeight
+						? highHeight / lowHeight
+						: 1;
 
-					m_dayNight.setMode((AnykaDayNight::Mode)newSharedConfig->nightmode);	
-					
-				}
+					m_osd.setOsdText(newSharedConfig->osdText);
+					m_osd.setPos(m_videoDevice, newSharedConfig->osdFontSize, newSharedConfig->osdX, 
+						newSharedConfig->osdY, lowHighMultiplier);
 
-				if (newSharedConfig->motionEnabled != m_currentSharedConfig.motionEnabled ||
-					newSharedConfig->motionSensitivity != m_currentSharedConfig.motionSensitivity)
-				{
-					if (newSharedConfig->motionEnabled)
-					{
-						m_motionDetect.start(m_videoDevice, newSharedConfig->motionSensitivity,
-							m_mainConfig.getValue(kConfigMdFps, 0),
-							m_mainConfig.getValue(kConfigMdX, 0), m_mainConfig.getValue(kConfigMdY, 0), 
-							m_mainConfig.getValue(kConfigMdWidth, 0), m_mainConfig.getValue(kConfigMdHeight, 0));
-					}
-					else
-					{
-						m_motionDetect.stop();
-					}
-				}
-
-				if (newSharedConfig->irCut != m_currentSharedConfig.irCut)
-				{
-					m_dayNight.setIrCut(newSharedConfig->irCut);
-				}
-
-				if (newSharedConfig->irLed != m_currentSharedConfig.irLed)
-				{
-					m_dayNight.setIrLed(newSharedConfig->irLed);
-				}
-
-				if (newSharedConfig->videoDay != m_currentSharedConfig.videoDay)
-				{
-					m_dayNight.setVideo(newSharedConfig->videoDay);
-				}
-
-				if (newSharedConfig->osdEnabled != m_currentSharedConfig.osdEnabled ||
-					newSharedConfig->osdAlpha != m_currentSharedConfig.osdAlpha ||
-					newSharedConfig->osdBackColor != m_currentSharedConfig.osdBackColor ||
-					newSharedConfig->osdEdgeColor != m_currentSharedConfig.osdEdgeColor ||
-					newSharedConfig->osdFontSize != m_currentSharedConfig.osdFontSize ||
-					newSharedConfig->osdFrontColor != m_currentSharedConfig.osdFrontColor ||
-					newSharedConfig->osdX != m_currentSharedConfig.osdX ||
-					newSharedConfig->osdY != m_currentSharedConfig.osdY ||
-					strncmp(newSharedConfig->osdText, m_currentSharedConfig.osdText, MAX_STR_SIZE) != 0)
-				{
-					if (newSharedConfig->osdEnabled && newSharedConfig->osdText[0] != 0)
-					{
-						if (m_osd.start(m_videoDevice, m_mainConfig.getValue(kConfigOsdFontPath), m_mainConfig.getValue(kConfigOsdOrigFontSize, 0)))
-						{
-							const int highHeight = m_config[VideoHigh].getValue(kConfigHeight, 0);
-							const int lowHeight  = m_config[VideoLow].getValue(kConfigHeight, 0);
-							const int lowHighMultiplier = lowHeight > 0 && highHeight > lowHeight
-								? highHeight / lowHeight
-								: 1;
-
-							m_osd.setOsdText(newSharedConfig->osdText);
-							m_osd.setPos(m_videoDevice, newSharedConfig->osdFontSize, newSharedConfig->osdX, 
-								newSharedConfig->osdY, lowHighMultiplier);
-
-							m_osd.setColor(newSharedConfig->osdFrontColor, newSharedConfig->osdBackColor, 
-								newSharedConfig->osdEdgeColor, newSharedConfig->osdAlpha);
-						}
-					}
-					else
-					{
-						m_osd.stop();
-					}
+					m_osd.setColor(newSharedConfig->osdFrontColor, newSharedConfig->osdBackColor, 
+						newSharedConfig->osdEdgeColor, newSharedConfig->osdAlpha);
 				}
 			}
-
-			memcpy(&m_currentSharedConfig, newSharedConfig, sizeof(m_currentSharedConfig));
+			else
+			{
+				m_osd.stop();
+			}
 		}
+
+		memcpy(&m_currentSharedConfig, newSharedConfig, sizeof(m_currentSharedConfig));
 	}
 }
 
