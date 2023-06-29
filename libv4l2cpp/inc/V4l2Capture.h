@@ -26,7 +26,7 @@ class V4l2Capture : public V4l2Access
 	public:
 		static V4l2Capture* create(const V4L2DeviceParameters & param);
 		virtual ~V4l2Capture();
-	
+		FrameRef read();
 		size_t read(char* buffer, size_t bufferSize);
 		bool   isReadable(timeval* tv);	
 };

@@ -32,9 +32,7 @@ protected:
     bool isAudioEncoder() const override;
     void onStart(void *device, const audio_param &audioParams) override;
     void onStop() override;
-    size_t readNewFrameData() override;
-    size_t copyNewFrameDataTo(char* buffer, size_t bufferSize) override;
-    void releaseFrameData() override;
+    bool readNewFrameData(FrameRef *outFrame) override;
 
 private:
 	struct list_head m_streamData;

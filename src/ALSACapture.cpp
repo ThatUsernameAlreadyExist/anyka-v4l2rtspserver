@@ -56,16 +56,16 @@ int ALSACapture::configureFormat(snd_pcm_hw_params_t *hw_params)
 	return 0;
 }
 
+
+FrameRef ALSACapture::read()
+{
+	return AnykaCameraManager::instance().getEncodedFrame(deviceId);
+}
+
+
 size_t ALSACapture::read(char* buffer, size_t bufferSize)
 {
-	size_t retVal = 0;
-
-	if (deviceId != AnykaCameraManager::kInvalidStreamId)
-	{
-		retVal = AnykaCameraManager::instance().getEncodedFrame(deviceId, buffer, bufferSize);
-	}
-
-	return retVal;
+	return AnykaCameraManager::instance().getEncodedFrame(deviceId, buffer, bufferSize);
 }
 		
 int ALSACapture::getFd()

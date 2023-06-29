@@ -18,7 +18,9 @@
 #include "AnykaMotionDetector.h"
 #include "AnykaDayNight.h"
 #include "ConfigFile.h"
+#include "FrameBuffer.h"
 #include "SharedMemory.h"
+
 
 extern "C"
 {
@@ -67,6 +69,7 @@ public:
 	int getFd(size_t streamId) const;
     size_t getBufferSize(size_t streamId) const;
     size_t getEncodedFrame(size_t streamId, char* buffer, size_t bufferSize);
+	FrameRef getEncodedFrame(size_t streamId);
 
 private:
 	AnykaCameraManager();

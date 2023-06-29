@@ -81,6 +81,7 @@ class V4l2Device
 		static unsigned int fourcc(const char* format);
 
 		size_t readInternal(char* buffer, size_t bufferSize);
+		FrameRef readInternal();
 	
 	private:
 		V4L2DeviceParameters m_params;

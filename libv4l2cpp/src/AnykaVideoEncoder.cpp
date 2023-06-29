@@ -82,39 +82,23 @@ void AnykaVideoEncoder::onStop()
 }
 
 
-size_t AnykaVideoEncoder::readNewFrameData()
+bool AnykaVideoEncoder::readNewFrameData(FrameRef *outFrame)
 {
-    return ak_venc_get_stream(m_encoderStream, &m_streamData) == AK_SUCCESS
-        ? m_streamData.len
-        : 0;
-}
+    bool retVal = false;
 
-
-size_t AnykaVideoEncoder::copyNewFrameDataTo(char* buffer, size_t bufferSize)
-{	
-    size_t retVal = 0;
-
-    if (m_streamData.len > 0 && m_streamData.data != NULL)
+    if (ak_venc_get_stream(m_encoderStream, &m_streamData) == AK_SUCCESS &&
+        m_streamData.len > 0 && m_streamData.data != NULL)
     {
-        retVal = std::min(m_streamData.len, bufferSize);
-        memcpy(buffer, m_streamData.data, retVal);
+        if (outFrame->reallocIfNeed(m_streamData.len))
+        {
+            memcpy(outFrame->getData(), m_streamData.data, m_streamData.len);
+            outFrame->setDataSize(m_streamData.len);
+
+            retVal = true;
+        }
+
+        ak_venc_release_stream(m_encoderStream, &m_streamData);
     }
 
     return retVal;
 }
-
-
-void AnykaVideoEncoder::releaseFrameData()
-{
-    if (m_streamData.len > 0 && m_streamData.data != NULL && m_encoderStream != NULL)
-    {
-        ak_venc_release_stream(m_encoderStream, &m_streamData);
-        m_streamData = {0};
-    }
-}
-
-
-
-
-
-

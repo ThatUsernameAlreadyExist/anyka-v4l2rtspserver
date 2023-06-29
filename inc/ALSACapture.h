@@ -47,6 +47,7 @@ class ALSACapture  : public DeviceInterface
 		int configureFormat(snd_pcm_hw_params_t *hw_params);
 			
 	public:
+		virtual FrameRef read();
 		virtual size_t read(char* buffer, size_t bufferSize);		
 		virtual int getFd();
 		virtual unsigned long getBufferSize();

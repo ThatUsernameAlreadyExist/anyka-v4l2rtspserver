@@ -114,67 +114,36 @@ void AnykaAudioEncoder::onStop()
 }
 
 
-size_t AnykaAudioEncoder::readNewFrameData()
+bool AnykaAudioEncoder::readNewFrameData(FrameRef *outFrame)
 {
-    size_t retVal = 0;
+    bool retVal = false;
 
-    if (ak_aenc_get_stream(m_encoderStream, &m_streamData) == AK_SUCCESS)
+    if (isSet())
     {
-        struct aenc_entry *entry = NULL;
-	    struct aenc_entry *ptr = NULL;
-
-        list_for_each_entry_safe(entry, ptr, &m_streamData, list) 
+        if (ak_aenc_get_stream(m_encoderStream, &m_streamData) == AK_SUCCESS)
         {
-            if(entry) 
+            struct aenc_entry *entry = NULL;
+            struct aenc_entry *ptr   = NULL;
+            size_t dataLen           = 0;
+
+            list_for_each_entry_safe(entry, ptr, &m_streamData, list) 
             {
-                retVal += entry->stream.len;
+                if(entry) 
+                {
+                    dataLen += entry->stream.len;
+                    if (outFrame->reallocIfNeed(dataLen))
+                    {
+                        retVal = true;
+                        
+                        m_memcpy(outFrame->getData() + outFrame->getDataSize(), entry->stream.data, entry->stream.len);
+                        outFrame->setDataSize(dataLen);
+                    }
+                }
+
+                ak_aenc_release_stream(entry);
             }
         }
     }
 
     return retVal;
 }
-
-
-size_t AnykaAudioEncoder::copyNewFrameDataTo(char* buffer, size_t bufferSize)
-{
-    size_t retVal = 0;
-
-    struct aenc_entry *entry = NULL;
-    struct aenc_entry *ptr   = NULL;
-
-    list_for_each_entry_safe(entry, ptr, &m_streamData, list) 
-    {
-        if(entry) 
-        {
-            const size_t toCopy = std::min(entry->stream.len, bufferSize - retVal);
-            m_memcpy(buffer + retVal, entry->stream.data, toCopy);
-
-            retVal += toCopy;
-
-            if (retVal >= bufferSize)
-            {
-                break;
-            }
-        }
-    }
-
-    return retVal;
-}
-
-
-void AnykaAudioEncoder::releaseFrameData()
-{
-    struct aenc_entry *entry = NULL;
-    struct aenc_entry *ptr = NULL;
-
-    list_for_each_entry_safe(entry, ptr, &m_streamData, list) 
-    {
-		ak_aenc_release_stream(entry);
-    }
-}
-
-
-
-
-

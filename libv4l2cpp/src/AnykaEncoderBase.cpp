@@ -15,13 +15,13 @@
 
 
 const size_t kDefaultMaxBufferSize = 384 * 1024;
+const FrameRef kEmptyFrameRef;
 
 
 AnykaEncoderBase::AnykaEncoderBase()
-	: m_bufferSize(kDefaultMaxBufferSize)
-    , m_encoder(NULL)
+    : m_encoder(NULL)
 	, m_encoderStream(NULL)
-	, m_isNewFrameAvailable(false)
+	, m_freeFrame(m_frameBuffer.getFreeFrame())
 {
 }
 
@@ -53,15 +53,14 @@ void AnykaEncoderBase::onStart(void *device, const audio_param &audioParams)
 
 void AnykaEncoderBase::stop()
 {
-    m_isNewFrameAvailable = false;
     m_signalFd.reset();
 
-    m_streamDataLock.lock();
+    m_encodedFramesLock.lock();
+    m_encodedFrames.clear();
+    m_encodedFramesLock.unlock();
 
-    releaseFrameData();
-    m_bufferSize = 0;
-
-    m_streamDataLock.unlock();
+    m_frameBuffer.clear();
+    m_freeFrame = m_frameBuffer.getFreeFrame();
 
     onStop();
 }
@@ -77,24 +76,32 @@ bool AnykaEncoderBase::encode()
 {
     bool retVal = false;
 
-	if (!m_isNewFrameAvailable && isSet()) // Encode new frame only if previous is delivered to caller.
+	if (isSet())
 	{
-		m_streamDataLock.lock();
-
-        // Release previous frame.
-        releaseFrameData();
-
         // Try encode new frame.
-		m_bufferSize = readNewFrameData();
+        if (readNewFrameData(&m_freeFrame))
+        {
+            m_encodedFramesLock.lock();
 
-		m_streamDataLock.unlock();
+            const bool needSignal = m_encodedFrames.size() == 0;
 
-        if (m_bufferSize > 0)
-		{
+            m_encodedFrames.push_back(m_freeFrame);
+
+            if (m_encodedFrames.size() > 10)
+            {
+                LOG(WARN)<<"Encoded buffer overflow: "<<m_encodedFrames.size()<<"\n";
+            }
+
+            m_encodedFramesLock.unlock();
+
+            if (needSignal)
+            {
+                m_signalFd.signal();
+            }
+
+            m_freeFrame = m_frameBuffer.getFreeFrame();
             retVal = true;
-			m_isNewFrameAvailable = true;
-            m_signalFd.signal();
-		}
+        }
 	}
 
 	return retVal;
@@ -109,7 +116,15 @@ int AnykaEncoderBase::getEncodedFrameReadyFd() const
 
 size_t AnykaEncoderBase::getEncodedFrameSize() const
 {
-    return m_bufferSize;
+    m_encodedFramesLock.lock();
+
+    const size_t retVal = m_encodedFrames.size() > 0
+        ? m_encodedFrames.front().getDataSize()
+        : kDefaultMaxBufferSize;
+
+    m_encodedFramesLock.unlock();
+
+    return retVal;
 }
 
 
@@ -117,25 +132,40 @@ size_t AnykaEncoderBase::getEncodedFrame(char* buffer, size_t bufferSize)
 {
 	size_t retVal = 0;
 
-	if (m_isNewFrameAvailable)
-	{
-        if (bufferSize > 0 && buffer != NULL)
-        {
-            m_streamDataLock.lock();
+    const FrameRef frame = getEncodedFrame();
 
-            retVal = copyNewFrameDataTo(buffer, bufferSize);
-
-            m_streamDataLock.unlock();
-        }
-
-        m_signalFd.reset();
-        m_isNewFrameAvailable = false;
-	}
+    if (frame.isSet())
+    {
+        retVal = std::min(frame.getDataSize(), bufferSize);
+        memcpy(buffer, frame.getData(), retVal);
+    }
 
 	return retVal;
 }
 
 
+FrameRef AnykaEncoderBase::getEncodedFrame()
+{
+    m_encodedFramesLock.lock();
+
+    const FrameRef retVal = m_encodedFrames.size() > 0
+        ? m_encodedFrames.front()
+        : kEmptyFrameRef;
+
+    if (m_encodedFrames.size() > 0)
+    {
+        m_encodedFrames.pop_front();
+
+        if (m_encodedFrames.size() == 0)
+        {
+            m_signalFd.reset();
+        }
+    }
+
+    m_encodedFramesLock.unlock();
+
+    return retVal;
+}
 
 
 

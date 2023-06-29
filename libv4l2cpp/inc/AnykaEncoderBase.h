@@ -19,8 +19,10 @@ extern "C"
     #include "ak_venc.h"
 }
 
+#include "FrameBuffer.h"
 #include "V4l2DummyFd.h"
 #include <atomic>
+#include <list>
 #include <mutex>
 
 
@@ -39,25 +41,25 @@ public:
     int getEncodedFrameReadyFd() const;
     size_t getEncodedFrameSize() const;
     size_t getEncodedFrame(char* buffer, size_t bufferSize);
+    FrameRef getEncodedFrame();
 
 protected:
     virtual bool isAudioEncoder() const = 0;
     virtual void onStart(void *device, const encode_param &videoParams);
     virtual void onStart(void *device, const audio_param &audioParams);
     virtual void onStop() = 0;
-    virtual size_t readNewFrameData() = 0;
-    virtual size_t copyNewFrameDataTo(char* buffer, size_t bufferSize) = 0;
-    virtual void releaseFrameData() = 0;
+    virtual bool readNewFrameData(FrameRef *outFrame) = 0;
 
 protected:
     void *m_encoder;
     void *m_encoderStream;
 
 private:
-    std::atomic<size_t> m_bufferSize;
-    std::atomic_bool m_isNewFrameAvailable;
-    std::mutex m_streamDataLock;
     V4l2DummyFd m_signalFd;
+    FrameBuffer m_frameBuffer;
+    FrameRef m_freeFrame;
+    mutable std::mutex m_encodedFramesLock;
+    std::list<FrameRef> m_encodedFrames;
 };
 
 

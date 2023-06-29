@@ -10,6 +10,7 @@
 
 #pragma once
 #include <list>
+#include "FrameBuffer.h"
 
 // ---------------------------------
 // Device Interface
@@ -17,6 +18,7 @@
 class DeviceInterface
 {
 	public:
+		virtual FrameRef read() = 0;
 		virtual size_t read(char* buffer, size_t bufferSize) = 0;	
 		virtual int getFd()                                  = 0;	
 		virtual unsigned long  getBufferSize()               = 0;

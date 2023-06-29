@@ -176,6 +176,7 @@ std::map<std::string, StreamId> kStreamNames
 const int kSharedConfUpdateCount = 20;
 const int kMaxMotionCount = 5;
 const char* kDefaultConfigName = "anykacam.ini";
+const FrameRef kEmptyFrameRef;
 
 
 static void updateDefaultConfigSection(const std::shared_ptr<ConfigFile> &config, 
@@ -402,6 +403,14 @@ size_t AnykaCameraManager::getEncodedFrame(size_t streamId, char* buffer, size_t
 	return streamId < STREAMS_COUNT
 		? m_streams[streamId].encoder->getEncodedFrame(buffer, bufferSize)
 		: 0;
+}
+
+
+FrameRef AnykaCameraManager::getEncodedFrame(size_t streamId)
+{
+	return streamId < STREAMS_COUNT
+		? m_streams[streamId].encoder->getEncodedFrame()
+		: kEmptyFrameRef;
 }
 
 

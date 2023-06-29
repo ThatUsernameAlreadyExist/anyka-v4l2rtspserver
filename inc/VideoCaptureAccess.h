@@ -24,7 +24,7 @@ class VideoCaptureAccess : public DeviceInterface
 	public:
 		VideoCaptureAccess(V4l2Capture* device) : m_device(device) {}
 		virtual ~VideoCaptureAccess()                              { delete m_device; }
-			
+		virtual FrameRef read()                                    { return m_device->read();}
 		virtual size_t read(char* buffer, size_t bufferSize)       { return m_device->read(buffer, bufferSize); }
 		virtual int getFd()                                        { return m_device->getFd(); }
 		virtual unsigned long getBufferSize()                      { return m_device->getBufferSize(); }

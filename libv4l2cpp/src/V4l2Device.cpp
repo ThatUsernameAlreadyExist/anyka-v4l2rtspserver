@@ -58,9 +58,13 @@ bool V4l2Device::init()
 
 size_t V4l2Device::readInternal(char* buffer, size_t bufferSize)  
 {
-	return streamId == AnykaCameraManager::kInvalidStreamId
-		? 0 
-		: AnykaCameraManager::instance().getEncodedFrame(streamId, buffer, bufferSize);
+	return AnykaCameraManager::instance().getEncodedFrame(streamId, buffer, bufferSize);
+}
+
+
+FrameRef V4l2Device::readInternal()  
+{
+	return AnykaCameraManager::instance().getEncodedFrame(streamId);
 }
 
 
@@ -103,9 +107,7 @@ bool V4l2Device::stop()
 
 unsigned int V4l2Device::getBufferSize()
 { 
-	return streamId == AnykaCameraManager::kInvalidStreamId
-		? 0
-		: AnykaCameraManager::instance().getBufferSize(streamId); 
+	return AnykaCameraManager::instance().getBufferSize(streamId);
 }
 
 
@@ -133,9 +135,7 @@ unsigned int V4l2Device::getHeight()
 int V4l2Device::getFd()         
 {
 	LOG(DEBUG)<<"V4l2Device::getFd " <<streamId<<"\n";
-	return streamId == AnykaCameraManager::kInvalidStreamId
-		? -1
-		: AnykaCameraManager::instance().getFd(streamId);         
+	return AnykaCameraManager::instance().getFd(streamId); 
 }
 
 

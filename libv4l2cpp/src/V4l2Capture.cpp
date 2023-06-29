@@ -72,4 +72,9 @@ size_t V4l2Capture::read(char* buffer, size_t bufferSize)
 	return m_device->readInternal(buffer, bufferSize);
 }
 
+FrameRef V4l2Capture::read()
+{
+	return m_device->readInternal();
+}
+
 				
