@@ -36,8 +36,8 @@ std::list< std::pair<unsigned char*,size_t> > H264_V4L2DeviceSource::splitFrames
 	{	
 		switch (frameType&0x1F)					
 		{
-			case 7: LOG(INFO) << "SPS size:" << size << " bufSize:" << bufSize; m_sps.assign((char*)buffer,size); break;
-			case 8: LOG(INFO) << "PPS size:" << size << " bufSize:" << bufSize; m_pps.assign((char*)buffer,size); break;
+			case 7: LOG(INFO) << "SPS size:" << size << " bufSize:" << bufSize; if (m_sps.empty()) m_sps.assign((char*)buffer,size); break;
+			case 8: LOG(INFO) << "PPS size:" << size << " bufSize:" << bufSize; if (m_pps.empty()) m_pps.assign((char*)buffer,size); break;
 			case 5: LOG(INFO) << "IDR size:" << size << " bufSize:" << bufSize; 
 				if (m_repeatConfig && !m_sps.empty() && !m_pps.empty())
 				{
@@ -49,7 +49,7 @@ std::list< std::pair<unsigned char*,size_t> > H264_V4L2DeviceSource::splitFrames
 				break;
 		}
 		
-		if (!m_sps.empty() && !m_pps.empty())
+		if (m_auxLine.empty() && !m_sps.empty() && !m_pps.empty())
 		{
 			u_int32_t profile_level_id = 0;					
 			if (m_sps.size() >= 4) profile_level_id = (((unsigned char)m_sps[1])<<16)|(((unsigned char)m_sps[2])<<8)|((unsigned char)m_sps[3]); 

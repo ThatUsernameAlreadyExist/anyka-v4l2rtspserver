@@ -18,6 +18,8 @@
 #include "logger.h"
 #include "H26x_V4l2DeviceSource.h"
 
+const size_t kMaxSearchLen = 64;
+
 // extract a frame
 unsigned char*  H26X_V4L2DeviceSource::extractFrame(unsigned char* frame, size_t& size, size_t& outsize, int& frameType)
 {						
@@ -25,24 +27,21 @@ unsigned char*  H26X_V4L2DeviceSource::extractFrame(unsigned char* frame, size_t
 	outsize = 0;
 	unsigned int markerlength = 0;
 	frameType = 0;
+
+	const size_t maxLen = std::min(size, kMaxSearchLen);
 	
-	unsigned char *startFrame = (unsigned char*)memmem(frame,size,H264marker,sizeof(H264marker));
+	unsigned char *startFrame = (unsigned char*)memmem(frame,maxLen,H264marker,sizeof(H264marker));
 	if (startFrame != NULL) {
 		markerlength = sizeof(H264marker);
-	} else {
-		startFrame = (unsigned char*)memmem(frame,size,H264shortmarker,sizeof(H264shortmarker));
-		if (startFrame != NULL) {
-			markerlength = sizeof(H264shortmarker);
-		}
-	}
+	} 
+
 	if (startFrame != NULL) {
 		frameType = startFrame[markerlength];
 		
-		int remainingSize = size-(startFrame-frame+markerlength);		
-		unsigned char *endFrame = (unsigned char*)memmem(&startFrame[markerlength], remainingSize, H264marker, sizeof(H264marker));
-		if (endFrame == NULL) {
-			endFrame = (unsigned char*)memmem(&startFrame[markerlength], remainingSize, H264shortmarker, sizeof(H264shortmarker));
-		}
+		size_t remainingSize = size-(startFrame-frame+markerlength);
+		const size_t maxRemLen = std::min(remainingSize, kMaxSearchLen);
+
+		unsigned char *endFrame = (unsigned char*)memmem(&startFrame[markerlength], maxRemLen, H264marker, sizeof(H264marker));
 		
 		if (m_keepMarker)
 		{

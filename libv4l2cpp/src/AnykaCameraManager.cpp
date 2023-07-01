@@ -177,7 +177,7 @@ const int kSharedConfUpdateCount = 20;
 const int kMaxMotionCount = 5;
 const char* kDefaultConfigName = "anykacam.ini";
 const FrameRef kEmptyFrameRef;
-const size_t kMaxVideoBufferSize = 384 * 1024;
+const size_t kMaxVideoBufferSize = 512 * 1024;
 const size_t kMaxAudioBufferSize = 8 * 1024;
 
 static void updateDefaultConfigSection(const std::shared_ptr<ConfigFile> &config, 

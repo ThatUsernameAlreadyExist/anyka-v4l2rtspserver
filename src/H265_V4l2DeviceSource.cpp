@@ -31,9 +31,9 @@ std::list< std::pair<unsigned char*,size_t> > H265_V4L2DeviceSource::splitFrames
 	{
 		switch ((frameType&0x7E)>>1)					
 		{
-			case 32: LOG(INFO) << "VPS size:" << size << " bufSize:" << bufSize; m_vps.assign((char*)buffer,size); break;
-			case 33: LOG(INFO) << "SPS size:" << size << " bufSize:" << bufSize; m_sps.assign((char*)buffer,size); break;
-			case 34: LOG(INFO) << "PPS size:" << size << " bufSize:" << bufSize; m_pps.assign((char*)buffer,size); break;
+			case 32: LOG(INFO) << "VPS size:" << size << " bufSize:" << bufSize; if (m_vps.empty()) m_vps.assign((char*)buffer,size); break;
+			case 33: LOG(INFO) << "SPS size:" << size << " bufSize:" << bufSize; if (m_sps.empty()) m_sps.assign((char*)buffer,size); break;
+			case 34: LOG(INFO) << "PPS size:" << size << " bufSize:" << bufSize; if (m_pps.empty()) m_pps.assign((char*)buffer,size); break;
 			case 19: 
 			case 20: LOG(INFO) << "IDR size:" << size << " bufSize:" << bufSize; 
 				if (m_repeatConfig && !m_vps.empty() && !m_sps.empty() && !m_pps.empty())
@@ -46,7 +46,7 @@ std::list< std::pair<unsigned char*,size_t> > H265_V4L2DeviceSource::splitFrames
 			default: break;
 		}
 		
-		if (!m_vps.empty() && !m_sps.empty() && !m_pps.empty())
+		if (m_auxLine.empty() && !m_vps.empty() && !m_sps.empty() && !m_pps.empty())
 		{		
 			char* vps_base64 = base64Encode(m_vps.c_str(), m_vps.size());
 			char* sps_base64 = base64Encode(m_sps.c_str(), m_sps.size());
