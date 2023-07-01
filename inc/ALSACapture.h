@@ -48,7 +48,6 @@ class ALSACapture  : public DeviceInterface
 			
 	public:
 		virtual FrameRef read();
-		virtual size_t read(char* buffer, size_t bufferSize);		
 		virtual int getFd();
 		virtual unsigned long getBufferSize();
 		

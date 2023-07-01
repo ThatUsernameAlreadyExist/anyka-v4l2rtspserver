@@ -35,15 +35,14 @@ class V4L2DeviceSource: public FramedSource
 		// ---------------------------------
 		struct Frame
 		{
-			Frame(char* buffer, int size, timeval timestamp, char * allocatedBuffer = NULL) : m_buffer(buffer), m_size(size), m_timestamp(timestamp), m_allocatedBuffer(allocatedBuffer) {};
+			Frame(char* buffer, int size, timeval timestamp, const FrameRef &allocatedBuffer) : m_buffer(buffer), m_size(size), m_timestamp(timestamp), m_allocatedBuffer(allocatedBuffer) {};
 			Frame(const Frame&);
 			Frame& operator=(const Frame&);
-			~Frame()  { delete [] m_allocatedBuffer; };
 			
 			char* m_buffer;
 			unsigned int m_size;
 			timeval m_timestamp;
-			char* m_allocatedBuffer;
+			FrameRef m_allocatedBuffer;
 		};
 		
 		// ---------------------------------
@@ -78,7 +77,7 @@ class V4L2DeviceSource: public FramedSource
 		static V4L2DeviceSource* createNew(UsageEnvironment& env, DeviceInterface * device, int outputFd, unsigned int queueSize, CaptureMode captureMode) ;
 		std::string getAuxLine()                   { return m_auxLine;    }
 		DeviceInterface* getDevice()               { return m_device;     }	
-		void postFrame(char * frame, int frameSize, const timeval &ref);
+		void postFrame(const FrameRef &frame, const timeval &ref);
 		virtual std::list< std::string > getInitFrames() { return std::list< std::string >(); }
 	
 
@@ -94,8 +93,8 @@ class V4L2DeviceSource: public FramedSource
 		static void incomingPacketHandlerStub(void* clientData, int mask) { ((V4L2DeviceSource*) clientData)->incomingPacketHandler(); };
 		void incomingPacketHandler();
 		int getNextFrame();
-		void processFrame(char * frame, int frameSize, const timeval &ref);
-		void queueFrame(char * frame, int frameSize, const timeval &tv, char * allocatedBuffer = NULL);
+		void processFrame(const FrameRef &frame, const timeval &ref);
+		void queueFrame(char * frame, int frameSize, const timeval &tv, const FrameRef &allocatedBuffer);
 
 		// split packet in frames
 		virtual std::list< std::pair<unsigned char*,size_t> > splitFrames(unsigned char* frame, unsigned frameSize);

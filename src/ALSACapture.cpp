@@ -62,12 +62,7 @@ FrameRef ALSACapture::read()
 	return AnykaCameraManager::instance().getEncodedFrame(deviceId);
 }
 
-
-size_t ALSACapture::read(char* buffer, size_t bufferSize)
-{
-	return AnykaCameraManager::instance().getEncodedFrame(deviceId, buffer, bufferSize);
-}
-		
+	
 int ALSACapture::getFd()
 {
 	return AnykaCameraManager::instance().getFd(deviceId);

@@ -56,12 +56,6 @@ bool V4l2Device::init()
 }
 
 
-size_t V4l2Device::readInternal(char* buffer, size_t bufferSize)  
-{
-	return AnykaCameraManager::instance().getEncodedFrame(streamId, buffer, bufferSize);
-}
-
-
 FrameRef V4l2Device::readInternal()  
 {
 	return AnykaCameraManager::instance().getEncodedFrame(streamId);

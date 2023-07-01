@@ -202,71 +202,65 @@ void V4L2DeviceSource::incomingPacketHandler()
 int V4L2DeviceSource::getNextFrame() 
 {
 	timeval ref;
-	gettimeofday(&ref, NULL);											
-	char* buffer = new char[m_device->getBufferSize()];	
-	int frameSize = m_device->read(buffer,  m_device->getBufferSize());	
-	if (frameSize < 0)
+	gettimeofday(&ref, NULL);
+
+	const FrameRef frame = m_device->read();
+
+	if (frame.isSet())
 	{
-		LOG(NOTICE) << "V4L2DeviceSource::getNextFrame errno:" << errno << " "  << strerror(errno);		
-	}
-	else if (frameSize == 0)
-	{
-		LOG(NOTICE) << "V4L2DeviceSource::getNextFrame no data errno:" << errno << " "  << strerror(errno);		
+		this->postFrame(frame ,ref);
 	}
 	else
 	{
-		this->postFrame(buffer,frameSize,ref);
-	}			
-	return frameSize;
+		LOG(NOTICE) << "V4L2DeviceSource::getNextFrame no data errno:" << errno << " "  << strerror(errno);		
+	}
+		
+	return frame.getDataSize();
 }	
 
 // post frame to queue
-void V4L2DeviceSource::postFrame(char * frame, int frameSize, const timeval &ref) 
+void V4L2DeviceSource::postFrame(const FrameRef &frame, const timeval &ref)
 {
 	timeval tv;
 	gettimeofday(&tv, NULL);												
 	timeval diff;
 	timersub(&tv,&ref,&diff);
-	m_in.notify(tv.tv_sec, frameSize);
-	LOG(DEBUG) << "postFrame\ttimestamp:" << ref.tv_sec << "." << ref.tv_usec << "\tsize:" << frameSize <<"\tdiff:" <<  (diff.tv_sec*1000+diff.tv_usec/1000) << "ms";
+	m_in.notify(tv.tv_sec, frame.getDataSize());
+	LOG(DEBUG) << "postFrame\ttimestamp:" << ref.tv_sec << "." << ref.tv_usec << "\tsize:" << frame.getDataSize() <<"\tdiff:" <<  (diff.tv_sec*1000+diff.tv_usec/1000) << "ms";
 	
-	processFrame(frame,frameSize,ref);
+	processFrame(frame, ref);
 	if (m_outfd != -1) 
 	{
-		int written = write(m_outfd, frame, frameSize);
-		if (written != frameSize) {
-			LOG(NOTICE) << "error writing output " << written << "/" << frameSize << " err:" << strerror(errno);
+		int written = write(m_outfd, frame.getData(), frame.getDataSize());
+		if (written != frame.getDataSize()) {
+			LOG(NOTICE) << "error writing output " << written << "/" << frame.getDataSize() << " err:" << strerror(errno);
 		}
-	}		
-}	
+	}	
+}
 
-		
-void V4L2DeviceSource::processFrame(char * frame, int frameSize, const timeval &ref) 
+
+void V4L2DeviceSource::processFrame(const FrameRef &frame, const timeval &ref)
 {
 	timeval tv;
 	gettimeofday(&tv, NULL);												
 	timeval diff;
 	timersub(&tv,&ref,&diff);
 		
-	std::list< std::pair<unsigned char*,size_t> > frameList = this->splitFrames((unsigned char*)frame, frameSize);
+	std::list< std::pair<unsigned char*,size_t> > frameList = this->splitFrames((unsigned char*)frame.getData(), frame.getDataSize());
 	while (!frameList.empty())
 	{
 		std::pair<unsigned char*,size_t>& item = frameList.front();
 		size_t size = item.second;
-		char* allocatedBuffer = NULL;
-		if (frameList.size() == 1) {
-			// last frame will release buffer
-			allocatedBuffer = frame;
-		}
-		queueFrame((char*)item.first,size,ref,allocatedBuffer);
+		queueFrame((char*)item.first,size,ref,frame);
 		frameList.pop_front();
 
 		LOG(DEBUG) << "queueFrame\ttimestamp:" << ref.tv_sec << "." << ref.tv_usec << "\tsize:" << size <<"\tdiff:" <<  (diff.tv_sec*1000+diff.tv_usec/1000) << "ms";		
 	}			
-}	
+}
+		
 
 // post a frame to fifo
-void V4L2DeviceSource::queueFrame(char * frame, int frameSize, const timeval &tv, char * allocatedBuffer) 
+void V4L2DeviceSource::queueFrame(char * frame, int frameSize, const timeval &tv, const FrameRef &allocatedBuffer)
 {
 	pthread_mutex_lock (&m_mutex);
 	while (m_captureQueue.size() >= m_queueSize)
@@ -280,7 +274,8 @@ void V4L2DeviceSource::queueFrame(char * frame, int frameSize, const timeval &tv
 	
 	// post an event to ask to deliver the frame
 	envir().taskScheduler().triggerEvent(m_eventTriggerId, this);
-}	
+}
+
 
 // split packet in frames					
 std::list< std::pair<unsigned char*,size_t> > V4L2DeviceSource::splitFrames(unsigned char* frame, unsigned frameSize) 

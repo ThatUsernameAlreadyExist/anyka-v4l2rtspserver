@@ -114,36 +114,6 @@ int AnykaEncoderBase::getEncodedFrameReadyFd() const
 }
 
 
-size_t AnykaEncoderBase::getEncodedFrameSize() const
-{
-    m_encodedFramesLock.lock();
-
-    const size_t retVal = m_encodedFrames.size() > 0
-        ? m_encodedFrames.front().getDataSize()
-        : kDefaultMaxBufferSize;
-
-    m_encodedFramesLock.unlock();
-
-    return retVal;
-}
-
-
-size_t AnykaEncoderBase::getEncodedFrame(char* buffer, size_t bufferSize)
-{
-	size_t retVal = 0;
-
-    const FrameRef frame = getEncodedFrame();
-
-    if (frame.isSet())
-    {
-        retVal = std::min(frame.getDataSize(), bufferSize);
-        memcpy(buffer, frame.getData(), retVal);
-    }
-
-	return retVal;
-}
-
-
 FrameRef AnykaEncoderBase::getEncodedFrame()
 {
     m_encodedFramesLock.lock();

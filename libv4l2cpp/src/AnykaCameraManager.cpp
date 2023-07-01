@@ -177,7 +177,8 @@ const int kSharedConfUpdateCount = 20;
 const int kMaxMotionCount = 5;
 const char* kDefaultConfigName = "anykacam.ini";
 const FrameRef kEmptyFrameRef;
-
+const size_t kMaxVideoBufferSize = 384 * 1024;
+const size_t kMaxAudioBufferSize = 8 * 1024;
 
 static void updateDefaultConfigSection(const std::shared_ptr<ConfigFile> &config, 
 	const std::map<std::string, std::string> &defConfig, const std::string &section)
@@ -392,17 +393,11 @@ int AnykaCameraManager::getChannels(size_t streamId)
 
 size_t AnykaCameraManager::getBufferSize(size_t streamId) const
 {
-	return streamId < STREAMS_COUNT
-		? m_streams[streamId].encoder->getEncodedFrameSize()
-		: 0;
-}
-
-
-size_t AnykaCameraManager::getEncodedFrame(size_t streamId, char* buffer, size_t bufferSize)
-{
-	return streamId < STREAMS_COUNT
-		? m_streams[streamId].encoder->getEncodedFrame(buffer, bufferSize)
-		: 0;
+	return streamId < AudioHigh
+		? kMaxVideoBufferSize
+		: streamId < STREAMS_COUNT
+			? kMaxAudioBufferSize
+			: 0;
 }
 
 
@@ -789,15 +784,17 @@ bool AnykaCameraManager::processJpeg()
 
 	if (retVal)
 	{
-		const size_t imageSize = m_jpegEncoder.getEncodedFrameSize();
-
-		void *outPtr = SharedMemory::instance().lockImage(imageSize);
-
-		if (outPtr != NULL)
+		const FrameRef frame = m_jpegEncoder.getEncodedFrame();
+		if (frame.isSet())
 		{
-			m_jpegEncoder.getEncodedFrame((char*)outPtr, imageSize);
+			void *outPtr = SharedMemory::instance().lockImage(frame.getDataSize());
 
-			SharedMemory::instance().unlockImage(outPtr);
+			if (outPtr != NULL)
+			{
+				memcpy(outPtr, frame.getData(), frame.getDataSize());
+
+				SharedMemory::instance().unlockImage(outPtr);
+			}
 		}
 	}
 

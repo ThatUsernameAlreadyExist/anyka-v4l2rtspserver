@@ -67,11 +67,6 @@ bool V4l2Capture::isReadable(timeval* tv)
 // -----------------------------------------
 //    read from V4l2Device
 // -----------------------------------------
-size_t V4l2Capture::read(char* buffer, size_t bufferSize)
-{
-	return m_device->readInternal(buffer, bufferSize);
-}
-
 FrameRef V4l2Capture::read()
 {
 	return m_device->readInternal();

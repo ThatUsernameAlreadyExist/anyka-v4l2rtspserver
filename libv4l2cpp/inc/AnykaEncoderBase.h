@@ -39,8 +39,6 @@ public:
     bool encode();
 
     int getEncodedFrameReadyFd() const;
-    size_t getEncodedFrameSize() const;
-    size_t getEncodedFrame(char* buffer, size_t bufferSize);
     FrameRef getEncodedFrame();
 
 protected:

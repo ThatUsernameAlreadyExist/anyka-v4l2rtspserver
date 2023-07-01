@@ -80,7 +80,6 @@ class V4l2Device
 		static std::string fourcc(unsigned int format);
 		static unsigned int fourcc(const char* format);
 
-		size_t readInternal(char* buffer, size_t bufferSize);
 		FrameRef readInternal();
 	
 	private:
