@@ -18,7 +18,7 @@
 #include "logger.h"
 #include "H26x_V4l2DeviceSource.h"
 
-const size_t kMaxSearchLen = 64;
+const size_t kMaxSearchLen = 128;
 
 // extract a frame
 unsigned char*  H26X_V4L2DeviceSource::extractFrame(unsigned char* frame, size_t& size, size_t& outsize, int& frameType)
