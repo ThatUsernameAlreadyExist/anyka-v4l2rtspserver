@@ -377,7 +377,7 @@ void* ak_venc_request_stream(void *vi_handle, void *enc_handle);
  *        'ak_get_error_str()' to get more detail.
  */
 int ak_venc_get_stream(void *stream_handle, struct video_stream *stream);
-
+int ak_venc_get_stream_ex(void *stream_handle, char *buffer, size_t bufferSize, size_t *outSize);
 /**
  * ak_venc_release_stream - release stream resource
  * @stream_handle[IN]: stream handle

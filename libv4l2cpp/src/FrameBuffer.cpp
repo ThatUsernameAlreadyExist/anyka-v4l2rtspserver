@@ -46,6 +46,12 @@ size_t FrameRef::getDataSize() const
 }
 
 
+size_t FrameRef::getFullSize() const
+{
+	return m_data->m_fullSize;
+}
+
+
 void FrameRef::setDataSize(size_t size)
 {
 	m_data->m_dataSize = size;

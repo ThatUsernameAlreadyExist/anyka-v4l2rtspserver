@@ -21,6 +21,7 @@ public:
 
 	char* getData() const;
 	size_t getDataSize() const;
+	size_t getFullSize() const;
 	void setDataSize(size_t size);
 	bool reallocIfNeed(size_t size);
 	bool isSet() const;

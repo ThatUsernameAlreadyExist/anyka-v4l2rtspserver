@@ -86,18 +86,21 @@ bool AnykaVideoEncoder::readNewFrameData(FrameRef *outFrame)
 {
     bool retVal = false;
 
-    if (ak_venc_get_stream(m_encoderStream, &m_streamData) == AK_SUCCESS &&
-        m_streamData.len > 0 && m_streamData.data != NULL)
+    size_t dataSize = 0;
+
+    for (size_t i = 0; i < 2; ++i)
     {
-        if (outFrame->reallocIfNeed(m_streamData.len))
+        if (ak_venc_get_stream_ex(m_encoderStream, outFrame->getData(), 
+                outFrame->getFullSize(), &dataSize) == AK_SUCCESS)
         {
-            memcpy(outFrame->getData(), m_streamData.data, m_streamData.len);
-            outFrame->setDataSize(m_streamData.len);
-
+            outFrame->setDataSize(dataSize);
             retVal = true;
+            break;
         }
-
-        ak_venc_release_stream(m_encoderStream, &m_streamData);
+        else if (dataSize == 0 || !outFrame->reallocIfNeed(dataSize))
+        {
+            break;
+        }
     }
 
     return retVal;
