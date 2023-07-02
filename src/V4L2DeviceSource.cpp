@@ -54,7 +54,9 @@ V4L2DeviceSource::V4L2DeviceSource(UsageEnvironment& env, DeviceInterface * devi
 	m_out("out") , 
 	m_outfd(outputFd),
 	m_device(device),
-	m_queueSize(queueSize)
+	m_queueSize(queueSize),
+	m_queuedFramesCount(0)
+
 {
 	m_eventTriggerId = envir().taskScheduler().createEventTrigger(V4L2DeviceSource::deliverFrameStub);
 	memset(&m_thid, 0, sizeof(m_thid));
@@ -139,8 +141,10 @@ void V4L2DeviceSource::doGetNextFrame()
 // deliver frame to the sink
 void V4L2DeviceSource::deliverFrame()
 {			
-	if (isCurrentlyAwaitingData()) 
+	if (m_queuedFramesCount > 0 && isCurrentlyAwaitingData()) 
 	{
+		--m_queuedFramesCount;
+
 		fDurationInMicroseconds = 0;
 		fFrameSize = 0;
 		
@@ -262,17 +266,26 @@ void V4L2DeviceSource::processFrame(const FrameRef &frame, const timeval &ref)
 // post a frame to fifo
 void V4L2DeviceSource::queueFrame(char * frame, int frameSize, const timeval &tv, const FrameRef &allocatedBuffer)
 {
+	size_t prevQueueSize = 0;
 	pthread_mutex_lock (&m_mutex);
 	while (m_captureQueue.size() >= m_queueSize)
 	{
 		LOG(DEBUG) << "Queue full size drop frame size:"  << (int)m_captureQueue.size() ;		
 		m_captureQueue.pop_front();
 	}
+
+	prevQueueSize = m_captureQueue.size();
 	m_captureQueue.emplace_back(frame, frameSize, tv, allocatedBuffer);	
+
 	pthread_mutex_unlock (&m_mutex);
+
+	m_queuedFramesCount = prevQueueSize + 1;
 	
 	// post an event to ask to deliver the frame
-	envir().taskScheduler().triggerEvent(m_eventTriggerId, this);
+	if (prevQueueSize == 0)
+	{
+		envir().taskScheduler().triggerEvent(m_eventTriggerId, this);
+	}
 }
 
 

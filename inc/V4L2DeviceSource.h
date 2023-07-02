@@ -16,7 +16,7 @@
 #include <list> 
 #include <iostream>
 #include <iomanip>
-
+#include <atomic>
 #include <pthread.h>
 
 // live555
@@ -111,5 +111,6 @@ class V4L2DeviceSource: public FramedSource
 		pthread_t m_thid;
 		pthread_mutex_t m_mutex;
 		std::string m_auxLine;
+		std::atomic<int> m_queuedFramesCount;
 };
 
