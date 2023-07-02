@@ -13,6 +13,28 @@
 // project
 #include "BaseServerMediaSubsession.h"
 #include "MJPEGVideoSource.h"
+#include <map>
+
+
+const std::map<int, u_int8_t> kAacSamplingIndexes
+{
+	{96000, 0},
+	{88200, 1},
+	{64000, 2},
+	{48000, 3},
+  	{44100, 4},
+	{32000, 5},
+	{24000, 6},
+	{22050, 7},
+	{16000, 8},
+	{12000, 9},
+	{11025, 10},
+	{8000,  11},
+  	{7350,  12},
+	{0,     13},
+	{0, 	14},
+	{0,		15}
+};
 
 // ---------------------------------
 //   BaseServerMediaSubsession
@@ -48,6 +70,8 @@ FramedSource* BaseServerMediaSubsession::createSource(UsageEnvironment& env, Fra
 RTPSink*  BaseServerMediaSubsession::createSink(UsageEnvironment& env, Groupsock* rtpGroupsock, unsigned char rtpPayloadTypeIfDynamic, const std::string& format, V4L2DeviceSource* source)
 {
 	RTPSink* videoSink = NULL;
+	DeviceInterface* device = source->getDevice();
+
 	if (format == "video/MP2T")
 	{
 		videoSink = SimpleRTPSink::createNew(env, rtpGroupsock,rtpPayloadTypeIfDynamic, 90000, "video", "MP2T", 1, True, False); 
@@ -78,7 +102,6 @@ RTPSink*  BaseServerMediaSubsession::createSink(UsageEnvironment& env, Groupsock
 	else if (format =="video/RAW") 
 	{ 
 		std::string sampling;
-		DeviceInterface* device = source->getDevice();
 		switch (device->getVideoFormat()) {
 			case V4L2_PIX_FMT_YUV444: sampling = "YCbCr-4:4:4"; break;
 			case V4L2_PIX_FMT_UYVY  : sampling = "YCbCr-4:2:2"; break;
@@ -97,30 +120,38 @@ RTPSink*  BaseServerMediaSubsession::createSink(UsageEnvironment& env, Groupsock
     }
 	else
 	{
-		std::istringstream is(format);
-		std::string dummy;
-		getline(is, dummy, '/');	
-		getline(is, dummy, '/');	
-		std::string sampleRate("8000");
-		getline(is, sampleRate, '/');	
-		std::string channels("1");
-		getline(is, channels);	
+		const int sampleRate    = device->getSampleRate();
+		const u_int8_t channels = (u_int8_t)device->getChannels();
 
 		if (format.find("audio/L16") == 0)
 		{
-			videoSink = SimpleRTPSink::createNew(env, rtpGroupsock, rtpPayloadTypeIfDynamic, atoi(sampleRate.c_str()), "audio", "L16", atoi(channels.c_str()), True, False); 
+			videoSink = SimpleRTPSink::createNew(env, rtpGroupsock, rtpPayloadTypeIfDynamic, sampleRate, "audio", "L16", channels, True, False); 
 		}
 		else if (format.find("audio/PCMU") == 0)
 		{
-			videoSink = SimpleRTPSink::createNew(env, rtpGroupsock, rtpPayloadTypeIfDynamic, atoi(sampleRate.c_str()), "audio", "PCMU", atoi(channels.c_str()), True, False); 
+			videoSink = SimpleRTPSink::createNew(env, rtpGroupsock, rtpPayloadTypeIfDynamic, sampleRate, "audio", "PCMU", channels, True, False); 
 		}
 		else if (format.find("audio/PCMA") == 0)
 		{
-			videoSink = SimpleRTPSink::createNew(env, rtpGroupsock, rtpPayloadTypeIfDynamic, atoi(sampleRate.c_str()), "audio", "PCMA", atoi(channels.c_str()), True, False); 
+			videoSink = SimpleRTPSink::createNew(env, rtpGroupsock, rtpPayloadTypeIfDynamic, sampleRate, "audio", "PCMA", channels, True, False); 
 		}
 		else if (format.find("audio/AAC") == 0)
 		{
-			videoSink = MPEG4GenericRTPSink::createNew(env, rtpGroupsock, rtpPayloadTypeIfDynamic, atoi(sampleRate.c_str()), "audio", "AAC-hbr", "", atoi(channels.c_str())); 
+			// Construct the 'AudioSpecificConfig', and from it, the corresponding ASCII string:
+			const auto it = kAacSamplingIndexes.find(sampleRate);
+			const u_int8_t samplingFrequencyIndex = it != kAacSamplingIndexes.end()
+				? it->second
+				: 11;
+
+			char configStr[5] = {0};
+			unsigned char audioSpecificConfig[2];
+			u_int8_t const audioObjectType = 2; // AAC main + 1
+
+			audioSpecificConfig[0] = (audioObjectType<<3) | (samplingFrequencyIndex>>1);
+			audioSpecificConfig[1] = (samplingFrequencyIndex<<7) | (channels<<3);
+			sprintf(configStr, "%02X%02x", audioSpecificConfig[0], audioSpecificConfig[1]);
+
+			videoSink = MPEG4GenericRTPSink::createNew(env, rtpGroupsock, rtpPayloadTypeIfDynamic, sampleRate, "audio", "AAC-hbr", configStr, channels); 
 		}
 	}
 

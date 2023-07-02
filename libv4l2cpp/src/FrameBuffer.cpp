@@ -104,7 +104,7 @@ FrameRef FrameBuffer::getFreeFrame()
 		m_frames.push_back(FrameRef());
 		retPtr = &m_frames.back();
 
-		LOG(NOTICE)<<"Increase frame buffer size to "<<m_frames.size()<<"\n";
+		LOG(DEBUG)<<"Increase frame buffer size to "<<m_frames.size()<<"\n";
 	}
 
 	return *retPtr;

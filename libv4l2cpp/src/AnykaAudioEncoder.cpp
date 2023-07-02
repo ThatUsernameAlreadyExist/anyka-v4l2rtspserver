@@ -62,13 +62,6 @@ void AnykaAudioEncoder::onStart(void *device, const audio_param &audioParams)
         m_encoder = ak_aenc_open(&audioParams);
         if (m_encoder != NULL)
         {
-            if (audioParams.type == AK_AUDIO_TYPE_AAC) 
-            {
-                struct aenc_attr attr;
-                attr.aac_head = AENC_AAC_SAVE_FRAME_HEAD;
-                ak_aenc_set_attr(m_encoder, &attr); 
-            }
-
             m_memcpy = audioParams.type == AK_AUDIO_TYPE_PCM
                 ? &memcpySwap16
                 : &memcpy;
