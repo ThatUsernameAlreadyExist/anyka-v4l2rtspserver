@@ -266,7 +266,6 @@ void V4L2DeviceSource::queueFrame(char * frame, int frameSize, const timeval &tv
 	while (m_captureQueue.size() >= m_queueSize)
 	{
 		LOG(DEBUG) << "Queue full size drop frame size:"  << (int)m_captureQueue.size() ;		
-		delete m_captureQueue.front();
 		m_captureQueue.pop_front();
 	}
 	m_captureQueue.emplace_back(frame, frameSize, tv, allocatedBuffer);	
