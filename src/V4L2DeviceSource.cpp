@@ -147,40 +147,40 @@ void V4L2DeviceSource::deliverFrame()
 		pthread_mutex_lock (&m_mutex);
 		if (m_captureQueue.empty())
 		{
+			pthread_mutex_unlock (&m_mutex);
 			LOG(DEBUG) << "Queue is empty";		
 		}
 		else
-		{				
+		{
+			Frame frame = m_captureQueue.front();
+			m_captureQueue.pop_front();
+			const size_t remainingQueueSize = m_captureQueue.size(); 
+
+			pthread_mutex_unlock (&m_mutex);
+
 			timeval curTime;
 			gettimeofday(&curTime, NULL);			
-			Frame * frame = m_captureQueue.front();
-			m_captureQueue.pop_front();
-	
-			m_out.notify(curTime.tv_sec, frame->m_size);
-			if (frame->m_size > fMaxSize) 
+
+			m_out.notify(curTime.tv_sec, frame.m_size);
+			if (frame.m_size > fMaxSize) 
 			{
+				LOG(WARN)<<"Truncate frame to "<<fMaxSize;
 				fFrameSize = fMaxSize;
-				fNumTruncatedBytes = frame->m_size - fMaxSize;
+				fNumTruncatedBytes = frame.m_size - fMaxSize;
 			} 
 			else 
 			{
-				fFrameSize = frame->m_size;
+				fFrameSize = frame.m_size;
 			}
-			timeval diff;
-			timersub(&curTime,&(frame->m_timestamp),&diff);
 
-			LOG(DEBUG) << "deliverFrame\ttimestamp:" << curTime.tv_sec << "." << curTime.tv_usec << "\tsize:" << fFrameSize <<"\tdiff:" <<  (diff.tv_sec*1000+diff.tv_usec/1000) << "ms\tqueue:" << m_captureQueue.size();		
-			
-			fPresentationTime = frame->m_timestamp;
-			memcpy(fTo, frame->m_buffer, fFrameSize);
-			delete frame;
+			fPresentationTime = frame.m_timestamp;
+			memcpy(fTo, frame.m_buffer, fFrameSize);
 
-			if (!m_captureQueue.empty()) {
+			if (remainingQueueSize > 0) {
 				envir().taskScheduler().triggerEvent(m_eventTriggerId, this);
 			}
 		}
-		pthread_mutex_unlock (&m_mutex);
-		
+
 		if (fFrameSize > 0)
 		{
 			// send Frame to the consumer
@@ -269,7 +269,7 @@ void V4L2DeviceSource::queueFrame(char * frame, int frameSize, const timeval &tv
 		delete m_captureQueue.front();
 		m_captureQueue.pop_front();
 	}
-	m_captureQueue.push_back(new Frame(frame, frameSize, tv, allocatedBuffer));	
+	m_captureQueue.emplace_back(frame, frameSize, tv, allocatedBuffer);	
 	pthread_mutex_unlock (&m_mutex);
 	
 	// post an event to ask to deliver the frame

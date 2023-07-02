@@ -36,8 +36,6 @@ class V4L2DeviceSource: public FramedSource
 		struct Frame
 		{
 			Frame(char* buffer, int size, timeval timestamp, const FrameRef &allocatedBuffer) : m_buffer(buffer), m_size(size), m_timestamp(timestamp), m_allocatedBuffer(allocatedBuffer) {};
-			Frame(const Frame&);
-			Frame& operator=(const Frame&);
 			
 			char* m_buffer;
 			unsigned int m_size;
@@ -103,7 +101,7 @@ class V4L2DeviceSource: public FramedSource
 		virtual void doGetNextFrame();	
 					
 	protected:
-		std::list<Frame*> m_captureQueue;
+		std::list<Frame> m_captureQueue;
 		Stats m_in;
 		Stats m_out;
 		EventTriggerId m_eventTriggerId;
