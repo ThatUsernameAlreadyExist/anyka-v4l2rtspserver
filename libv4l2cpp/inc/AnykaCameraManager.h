@@ -99,9 +99,9 @@ private:
 	void stopThread();
 	bool restartThread();
 	
-	encode_param getVideoEncodeParams(size_t streamId);
+	VideoEncodeParam getVideoEncodeParams(size_t streamId);
 	audio_param getAudioEncodeParams(size_t streamId);
-	encode_param getJpegEncodeParams();
+	VideoEncodeParam getJpegEncodeParams();
 
 	void processThread();
 	bool processEncoding();

@@ -30,7 +30,7 @@ public:
 
 protected:
     bool isAudioEncoder() const override;
-    void onStart(void *device, const encode_param &videoParams) override;
+    void onStart(void *device, const VideoEncodeParam &videoParams) override;
     void onStop() override;
     bool readNewFrameData(FrameRef *outFrame) override;
 

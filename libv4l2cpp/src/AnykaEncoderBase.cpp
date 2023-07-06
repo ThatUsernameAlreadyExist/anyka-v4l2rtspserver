@@ -26,7 +26,7 @@ AnykaEncoderBase::AnykaEncoderBase()
 }
 
 
-bool AnykaEncoderBase::start(void *videoDevice, void *audioDevice, const encode_param &videoParams, const audio_param &audioParams)
+bool AnykaEncoderBase::start(void *videoDevice, void *audioDevice, const VideoEncodeParam &videoParams, const audio_param &audioParams)
 {
     if (isAudioEncoder())
     {
@@ -41,7 +41,7 @@ bool AnykaEncoderBase::start(void *videoDevice, void *audioDevice, const encode_
 }
 
 
-void AnykaEncoderBase::onStart(void *device, const encode_param &videoParams)
+void AnykaEncoderBase::onStart(void *device, const VideoEncodeParam &videoParams)
 {
 }
 

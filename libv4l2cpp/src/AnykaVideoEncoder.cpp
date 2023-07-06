@@ -37,15 +37,33 @@ bool AnykaVideoEncoder::isAudioEncoder() const
 }
 
 
-void AnykaVideoEncoder::onStart(void *device, const encode_param &videoParams)
+void AnykaVideoEncoder::onStart(void *device, const VideoEncodeParam &videoParams)
 {
     if (device != NULL)
     {
-        m_encoder = ak_venc_open(&videoParams);
+        m_encoder = ak_venc_open(&videoParams.videoParams);
 
         if (m_encoder != NULL)
         {
             LOG(NOTICE)<<"ak_venc_open success";
+
+            if (videoParams.videoParams.br_mode == BR_MODE_VBR)
+            {
+                if (ak_venc_set_kbps(m_encoder, videoParams.targetKbps, videoParams.maxKbps) != AK_SUCCESS)
+                {
+                    LOG(ERROR)<<"Error set kbps for VBR mode. Target: "<<videoParams.targetKbps << " max: " << videoParams.maxKbps;
+                }
+
+                if (videoParams.smartParams.smart_mode == 1 || videoParams.smartParams.smart_mode == 2) //1:mode of LTR, 2:mode of changing GOP length
+                {
+                    venc_smart_cfg smartCfg = videoParams.smartParams;
+                    if (ak_venc_set_smart_config(m_encoder, &smartCfg) != AK_SUCCESS)
+                    {
+                        LOG(ERROR)<<"Error set smart cfg for VBR mode";
+                    }
+                }
+            }
+
             m_encoderStream = ak_venc_request_stream(device, m_encoder);
 
             if (m_encoderStream != NULL)

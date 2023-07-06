@@ -25,6 +25,14 @@ extern "C"
 #include <list>
 #include <mutex>
 
+struct VideoEncodeParam
+{
+    encode_param videoParams;
+    venc_smart_cfg smartParams;
+    int maxKbps;
+    int targetKbps;
+};
+
 
 class AnykaEncoderBase
 {
@@ -34,7 +42,7 @@ public:
 
     bool isSet() const;
 
-    bool start(void *videoDevice, void *audioDevice, const encode_param &videoParams, const audio_param &audioParams);
+    bool start(void *videoDevice, void *audioDevice, const VideoEncodeParam &videoParams, const audio_param &audioParams);
     void stop();
     bool encode();
 
@@ -43,7 +51,7 @@ public:
 
 protected:
     virtual bool isAudioEncoder() const = 0;
-    virtual void onStart(void *device, const encode_param &videoParams);
+    virtual void onStart(void *device, const VideoEncodeParam &videoParams);
     virtual void onStart(void *device, const audio_param &audioParams);
     virtual void onStop() = 0;
     virtual bool readNewFrameData(FrameRef *outFrame) = 0;

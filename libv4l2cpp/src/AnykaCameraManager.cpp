@@ -68,6 +68,12 @@ const std::string kConfigNightDayLum     = "nightdaylum";
 const std::string kConfigDayNightAwb     = "daynightawb";
 const std::string kConfigNightDayAwb     = "nightdayawb";
 const std::string kConfigAbortOnError    = "abortonerror";
+const std::string kConfigSmartMode		 = "smartmode";
+const std::string kConfigSmartGopLen     = "smartgoplen";
+const std::string kConfigSmartQuality    = "smartquality";
+const std::string kConfigSmartStatic     = "smartstatic";
+const std::string kConfigMaxKbps    	 = "maxkbps";
+const std::string kConfigTargetKbps      = "targetkbps";
 
 
 const std::map<int, int> kAkCodecToFormatMap
@@ -122,36 +128,48 @@ const std::map<std::string, std::string> kDefaultConfig[STREAMS_COUNT]
 {
 	// VideoHigh
 	{
-		{kConfigWidth      , "1920"},
-		{kConfigHeight     , "1080"},
-		{kConfigCodec	   , std::to_string(HEVC_ENC_TYPE)}, // 2
-		{kConfigMinQp	   , "20"}, 
-		{kConfigMaxQp	   , "51"}, 
-		{kConfigFps	   	   , "25"},
-		{kConfigGopLen	   , "50"}, 
-		{kConfigBps	   	   , "1500"},
-		{kConfigProfile    , std::to_string(PROFILE_HEVC_MAIN)}, // 0
-		{kConfigBrMode     , std::to_string(BR_MODE_CBR)}, // 0
-		{kConfigOsdFontSize, "32"},
-		{kConfigOsdX   	   , "20"},
-		{kConfigOsdY   	   , "24"},
+		{kConfigWidth       , "1920"},
+		{kConfigHeight      , "1080"},
+		{kConfigCodec	    , std::to_string(HEVC_ENC_TYPE)}, // 2
+		{kConfigMinQp	    , "20"}, 
+		{kConfigMaxQp	    , "51"}, 
+		{kConfigFps	   	    , "25"},
+		{kConfigGopLen	    , "50"}, 
+		{kConfigBps	   	    , "1500"},
+		{kConfigProfile     , std::to_string(PROFILE_HEVC_MAIN)}, // 0
+		{kConfigBrMode      , std::to_string(BR_MODE_CBR)}, // 0
+		{kConfigSmartMode   , "0"},
+		{kConfigSmartGopLen	, "300"},
+		{kConfigSmartQuality, "100"},
+		{kConfigSmartStatic , "550"},
+		{kConfigMaxKbps     , "1000"},
+		{kConfigTargetKbps	, "600"},
+		{kConfigOsdFontSize , "32"},
+		{kConfigOsdX   	    , "20"},
+		{kConfigOsdY   	    , "24"},
 	},
 
 	// VideoLow
 	{
-		{kConfigWidth      , "640"},
-		{kConfigHeight     , "360"},
-		{kConfigCodec	   , std::to_string(H264_ENC_TYPE)}, // 0
-		{kConfigMinQp	   , "20"}, 
-		{kConfigMaxQp	   , "51"}, 
-		{kConfigFps	   	   , "25"},
-		{kConfigGopLen	   , "50"}, 
-		{kConfigBps	   	   , "500"},
-		{kConfigProfile    , std::to_string(PROFILE_MAIN)}, // 0
-		{kConfigBrMode     , std::to_string(BR_MODE_CBR)}, // 0
-		{kConfigOsdFontSize, "16"},
-		{kConfigOsdX   	   , "10"},
-		{kConfigOsdY   	   , "12"},
+		{kConfigWidth       , "640"},
+		{kConfigHeight      , "360"},
+		{kConfigCodec	    , std::to_string(H264_ENC_TYPE)}, // 0
+		{kConfigMinQp	    , "20"}, 
+		{kConfigMaxQp	    , "51"}, 
+		{kConfigFps	   	    , "25"},
+		{kConfigGopLen	    , "50"}, 
+		{kConfigBps	   	    , "500"},
+		{kConfigProfile     , std::to_string(PROFILE_MAIN)}, // 0
+		{kConfigBrMode      , std::to_string(BR_MODE_CBR)}, // 0
+		{kConfigSmartMode   , "0"},
+		{kConfigSmartGopLen	, "300"},
+		{kConfigSmartQuality, "100"},
+		{kConfigSmartStatic , "550"},
+		{kConfigMaxKbps     , "500"},
+		{kConfigTargetKbps	, "300"},
+		{kConfigOsdFontSize , "16"},
+		{kConfigOsdX   	    , "10"},
+		{kConfigOsdY   	    , "12"},
 	},
 
 	// AudioHigh
@@ -179,7 +197,7 @@ std::map<std::string, StreamId> kStreamNames
 };
 
 const int kSharedConfUpdateCount = 100;
-const int kMaxMotionCount = 50;
+const int kMaxMotionCount = 25;
 const char* kDefaultConfigName = "anykacam.ini";
 const FrameRef kEmptyFrameRef;
 const size_t kMaxVideoBufferSize = 512 * 1024;
@@ -706,22 +724,30 @@ bool AnykaCameraManager::restartThread()
 }
 
 
-encode_param AnykaCameraManager::getVideoEncodeParams(size_t streamId)
+VideoEncodeParam AnykaCameraManager::getVideoEncodeParams(size_t streamId)
 {
-	encode_param param = {0};
+	VideoEncodeParam param = {0};
 
-	param.width   		= m_config[streamId].getValue(kConfigWidth, 0);
-	param.height  		= m_config[streamId].getValue(kConfigHeight, 0);
-	param.minqp   		= m_config[streamId].getValue(kConfigMinQp, 0);
-	param.maxqp   		= m_config[streamId].getValue(kConfigMaxQp, 0);
-	param.fps     		= m_config[streamId].getValue(kConfigFps, 0);
-	param.goplen  		= m_config[streamId].getValue(kConfigGopLen, 0);
-	param.bps     		= m_config[streamId].getValue(kConfigBps, 0);
-	param.profile 		= (profile_mode) m_config[streamId].getValue(kConfigProfile, 0);
-	param.use_chn 		= streamId == VideoHigh ? ENCODE_MAIN_CHN : ENCODE_SUB_CHN;
-	param.enc_grp 		= streamId == VideoHigh ? ENCODE_MAINCHN_NET : ENCODE_SUBCHN_NET;
-	param.br_mode 		= (bitrate_ctrl_mode) m_config[streamId].getValue(kConfigBrMode, 0);
-	param.enc_out_type  = (encode_output_type) m_config[streamId].getValue(kConfigCodec, 0);
+	param.videoParams.width   		= m_config[streamId].getValue(kConfigWidth, 0);
+	param.videoParams.height  		= m_config[streamId].getValue(kConfigHeight, 0);
+	param.videoParams.minqp   		= m_config[streamId].getValue(kConfigMinQp, 0);
+	param.videoParams.maxqp   		= m_config[streamId].getValue(kConfigMaxQp, 0);
+	param.videoParams.fps     		= m_config[streamId].getValue(kConfigFps, 0);
+	param.videoParams.goplen  		= m_config[streamId].getValue(kConfigGopLen, 0);
+	param.videoParams.bps     		= m_config[streamId].getValue(kConfigBps, 0);
+	param.videoParams.profile 		= (profile_mode) m_config[streamId].getValue(kConfigProfile, 0);
+	param.videoParams.use_chn 		= streamId == VideoHigh ? ENCODE_MAIN_CHN : ENCODE_SUB_CHN;
+	param.videoParams.enc_grp 		= streamId == VideoHigh ? ENCODE_MAINCHN_NET : ENCODE_SUBCHN_NET;
+	param.videoParams.br_mode 		= (bitrate_ctrl_mode) m_config[streamId].getValue(kConfigBrMode, 0);
+	param.videoParams.enc_out_type  = (encode_output_type) m_config[streamId].getValue(kConfigCodec, 0);
+
+	param.smartParams.smart_mode	     =  m_config[streamId].getValue(kConfigSmartMode, 0);
+	param.smartParams.smart_goplen       =  m_config[streamId].getValue(kConfigSmartGopLen, 0);
+	param.smartParams.smart_quality      =  m_config[streamId].getValue(kConfigSmartQuality, 0);
+	param.smartParams.smart_static_value =  m_config[streamId].getValue(kConfigSmartStatic, 0);
+
+	param.maxKbps    = m_config[streamId].getValue(kConfigMaxKbps, 0);
+	param.targetKbps = m_config[streamId].getValue(kConfigTargetKbps, 0);
 
 	return param;
 }
@@ -740,13 +766,14 @@ audio_param AnykaCameraManager::getAudioEncodeParams(size_t streamId)
 }
 
 
-encode_param AnykaCameraManager::getJpegEncodeParams()
+VideoEncodeParam AnykaCameraManager::getJpegEncodeParams()
 {
-	encode_param param 	= getVideoEncodeParams(VideoLow); // Use jpeg from low stream.
+	VideoEncodeParam param 	= getVideoEncodeParams(VideoLow); // Use jpeg from low stream.
 
-	param.fps 			= m_mainConfig.getValue(kConfigJpgFps, 1);
-	param.enc_out_type 	= MJPEG_ENC_TYPE;
-	param.enc_grp 		= ENCODE_PICTURE;
+	param.videoParams.fps 			= m_mainConfig.getValue(kConfigJpgFps, 1);
+	param.videoParams.enc_out_type 	= MJPEG_ENC_TYPE;
+	param.videoParams.enc_grp 		= ENCODE_PICTURE;
+	param.smartParams.smart_mode    = 0;
 
 	return param;
 }
