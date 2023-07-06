@@ -67,6 +67,7 @@ const std::string kConfigDayNightLum     = "daynightlum";
 const std::string kConfigNightDayLum     = "nightdaylum";
 const std::string kConfigDayNightAwb     = "daynightawb";
 const std::string kConfigNightDayAwb     = "nightdayawb";
+const std::string kConfigAbortOnError    = "abortonerror";
 
 
 const std::map<int, int> kAkCodecToFormatMap
@@ -91,9 +92,6 @@ const std::map<std::string, std::string> kDefaultMainConfig
 	{kConfigSampleInterval  , std::to_string(AUDIO_DEFAULT_INTERVAL)},
 	{kConfigOsdFontPath     , "/usr/local/ak_font_16.bin"},
 	{kConfigOsdOrigFontSize , "16"},
-	{kConfigOsdFontSize     , "16"},
-	{kConfigOsdX   		    , "10"},
-	{kConfigOsdY   		    , "12"},
 	{kConfigOsdFrontColor   , "1"},
 	{kConfigOsdBackColor   	, "0"},
 	{kConfigOsdEdgeColor   	, "2"},
@@ -115,7 +113,8 @@ const std::map<std::string, std::string> kDefaultMainConfig
 	{kConfigDayNightLum		, "6000"},
 	{kConfigNightDayLum		, "2000"},
 	{kConfigDayNightAwb		, "90000"},
-	{kConfigNightDayAwb		, "1200"}
+	{kConfigNightDayAwb		, "1200"},
+	{kConfigAbortOnError    , "0"},
 };
 
 
@@ -123,30 +122,36 @@ const std::map<std::string, std::string> kDefaultConfig[STREAMS_COUNT]
 {
 	// VideoHigh
 	{
-		{kConfigWidth     , "1920"},
-		{kConfigHeight    , "1080"},
-		{kConfigCodec	  , std::to_string(HEVC_ENC_TYPE)}, // 2
-		{kConfigMinQp	  , "20"}, 
-		{kConfigMaxQp	  , "51"}, 
-		{kConfigFps	   	  , "25"},
-		{kConfigGopLen	  , "50"}, 
-		{kConfigBps	   	  , "1500"},
-		{kConfigProfile   , std::to_string(PROFILE_MAIN)}, // 0
-		{kConfigBrMode    , std::to_string(BR_MODE_CBR)}, // 0
+		{kConfigWidth      , "1920"},
+		{kConfigHeight     , "1080"},
+		{kConfigCodec	   , std::to_string(HEVC_ENC_TYPE)}, // 2
+		{kConfigMinQp	   , "20"}, 
+		{kConfigMaxQp	   , "51"}, 
+		{kConfigFps	   	   , "25"},
+		{kConfigGopLen	   , "50"}, 
+		{kConfigBps	   	   , "1500"},
+		{kConfigProfile    , std::to_string(PROFILE_HEVC_MAIN)}, // 0
+		{kConfigBrMode     , std::to_string(BR_MODE_CBR)}, // 0
+		{kConfigOsdFontSize, "32"},
+		{kConfigOsdX   	   , "20"},
+		{kConfigOsdY   	   , "24"},
 	},
 
 	// VideoLow
 	{
-		{kConfigWidth     , "640"},
-		{kConfigHeight    , "360"},
-		{kConfigCodec	  , std::to_string(H264_ENC_TYPE)}, // 0
-		{kConfigMinQp	  , "20"}, 
-		{kConfigMaxQp	  , "51"}, 
-		{kConfigFps	   	  , "25"},
-		{kConfigGopLen	  , "50"}, 
-		{kConfigBps	   	  , "500"},
-		{kConfigProfile   , std::to_string(PROFILE_MAIN)}, // 0
-		{kConfigBrMode    , std::to_string(BR_MODE_CBR)}, // 0
+		{kConfigWidth      , "640"},
+		{kConfigHeight     , "360"},
+		{kConfigCodec	   , std::to_string(H264_ENC_TYPE)}, // 0
+		{kConfigMinQp	   , "20"}, 
+		{kConfigMaxQp	   , "51"}, 
+		{kConfigFps	   	   , "25"},
+		{kConfigGopLen	   , "50"}, 
+		{kConfigBps	   	   , "500"},
+		{kConfigProfile    , std::to_string(PROFILE_MAIN)}, // 0
+		{kConfigBrMode     , std::to_string(BR_MODE_CBR)}, // 0
+		{kConfigOsdFontSize, "16"},
+		{kConfigOsdX   	   , "10"},
+		{kConfigOsdY   	   , "12"},
 	},
 
 	// AudioHigh
@@ -173,8 +178,8 @@ std::map<std::string, StreamId> kStreamNames
 	{"audio1", AudioLow},
 };
 
-const int kSharedConfUpdateCount = 20;
-const int kMaxMotionCount = 5;
+const int kSharedConfUpdateCount = 100;
+const int kMaxMotionCount = 50;
 const char* kDefaultConfigName = "anykacam.ini";
 const FrameRef kEmptyFrameRef;
 const size_t kMaxVideoBufferSize = 512 * 1024;
@@ -221,6 +226,7 @@ AnykaCameraManager::AnykaCameraManager()
 	, m_lastMotionDetected(false)
 	, m_motionCounter(0)
 	, m_motionDetectionFd(-1)
+	, m_abortOnError(false)
 {
 	LOG(DEBUG)<<"AnykaCameraManager construct";
 
@@ -251,6 +257,8 @@ AnykaCameraManager::AnykaCameraManager()
 	}
 
 	m_mainConfig.init(config, std::string());
+
+	m_abortOnError = m_mainConfig.getValue(kConfigAbortOnError, 0) != 0;
 
 	initVideoDevice();
 	initAudioDevice();
@@ -415,10 +423,17 @@ bool AnykaCameraManager::initVideoDevice()
 	{
 		LOG(NOTICE)<<"ak_vi_match_sensor success";
 		m_videoDevice = ak_vi_open(VIDEO_DEV0);
+
+		if (m_videoDevice == NULL)
+		{
+			abortIfNeed();
+		}
 	}
 	else
 	{
 		LOG(ERROR)<<"ak_vi_match_sensor failed";
+
+		abortIfNeed();
 	}
 }
 
@@ -490,14 +505,18 @@ bool AnykaCameraManager::initAudioDevice()
 		}
 		else
 		{
-			LOG(ERROR)<<"ak_ai_set_source faied";
+			LOG(ERROR)<<"ak_ai_set_source failed";
 			ak_ai_close(m_audioDevice);
 			m_audioDevice = NULL;
+
+			abortIfNeed();
 		}
 	}
 	else
 	{
-		LOG(ERROR)<<"ak_ai_open faied";
+		LOG(ERROR)<<"ak_ai_open failed";
+
+		abortIfNeed();
 	}
 
 	return m_audioDevice != NULL;
@@ -518,7 +537,7 @@ bool AnykaCameraManager::setAudioParams()
 
 	if (ak_ai_set_frame_interval(m_audioDevice, interval) != AK_SUCCESS)
 	{
-		LOG(WARN)<<"ak_ai_set_frame_interval faied";
+		LOG(WARN)<<"ak_ai_set_frame_interval failed";
 	}
 
 	return true;
@@ -583,15 +602,11 @@ void AnykaCameraManager::startOsd()
 	{
 		if (m_osd.start(m_videoDevice, m_mainConfig.getValue(kConfigOsdFontPath), m_mainConfig.getValue(kConfigOsdOrigFontSize, 0)))
 		{
-			const int highHeight = m_config[VideoHigh].getValue(kConfigHeight, 0);
-			const int lowHeight  = m_config[VideoLow].getValue(kConfigHeight, 0);
-			const int lowHighMultiplier = lowHeight > 0 && highHeight > lowHeight
-				? highHeight / lowHeight
-				: 1;
-
 			m_osd.setOsdText(m_mainConfig.getValue(kConfigOsdText));
-			m_osd.setPos(m_videoDevice, m_mainConfig.getValue(kConfigOsdFontSize, 0), m_mainConfig.getValue(kConfigOsdX, 0), 
-				m_mainConfig.getValue(kConfigOsdY, 0), lowHighMultiplier);
+			m_osd.setPos(m_videoDevice,  
+				m_config[VideoHigh].getValue(kConfigOsdFontSize, 0), m_config[VideoLow].getValue(kConfigOsdFontSize, 0),
+				m_config[VideoHigh].getValue(kConfigOsdX, 0), m_config[VideoHigh].getValue(kConfigOsdY, 0),
+				m_config[VideoLow].getValue(kConfigOsdX, 0),  m_config[VideoLow].getValue(kConfigOsdY, 0));
 
 			m_osd.setColor(m_mainConfig.getValue(kConfigOsdFrontColor, 0), m_mainConfig.getValue(kConfigOsdBackColor, 0), 
 				m_mainConfig.getValue(kConfigOsdEdgeColor, 0), m_mainConfig.getValue(kConfigOsdAlpha, 0));
@@ -762,6 +777,10 @@ void AnykaCameraManager::processThread()
 
 		stop();
 	}
+	else
+	{
+		abortIfNeed();
+	}
 }
 
 
@@ -853,29 +872,28 @@ void AnykaCameraManager::processSharedConfig()
 			m_dayNight.setVideo(newSharedConfig->videoDay);
 		}
 
-		if (newSharedConfig->osdEnabled 	!= m_currentSharedConfig.osdEnabled ||
-			newSharedConfig->osdAlpha 		!= m_currentSharedConfig.osdAlpha ||
-			newSharedConfig->osdBackColor 	!= m_currentSharedConfig.osdBackColor ||
-			newSharedConfig->osdEdgeColor 	!= m_currentSharedConfig.osdEdgeColor ||
-			newSharedConfig->osdFontSize 	!= m_currentSharedConfig.osdFontSize ||
-			newSharedConfig->osdFrontColor 	!= m_currentSharedConfig.osdFrontColor ||
-			newSharedConfig->osdX 			!= m_currentSharedConfig.osdX ||
-			newSharedConfig->osdY 			!= m_currentSharedConfig.osdY ||
+		if (newSharedConfig->osdEnabled 	 != m_currentSharedConfig.osdEnabled ||
+			newSharedConfig->osdAlpha 		 != m_currentSharedConfig.osdAlpha ||
+			newSharedConfig->osdBackColor 	 != m_currentSharedConfig.osdBackColor ||
+			newSharedConfig->osdEdgeColor 	 != m_currentSharedConfig.osdEdgeColor ||
+			newSharedConfig->osdFrontColor 	 != m_currentSharedConfig.osdFrontColor ||
+			newSharedConfig->osdFontSizeHigh != m_currentSharedConfig.osdFontSizeHigh ||
+			newSharedConfig->osdXHigh 	     != m_currentSharedConfig.osdXHigh ||
+			newSharedConfig->osdYHigh		 != m_currentSharedConfig.osdYHigh ||
+			newSharedConfig->osdFontSizeLow  != m_currentSharedConfig.osdFontSizeLow ||
+			newSharedConfig->osdXLow	     != m_currentSharedConfig.osdXLow ||
+			newSharedConfig->osdYLow		 != m_currentSharedConfig.osdYLow ||
 			strncmp(newSharedConfig->osdText, m_currentSharedConfig.osdText, MAX_STR_SIZE) != 0)
 		{
 			if (newSharedConfig->osdEnabled && newSharedConfig->osdText[0] != 0)
 			{
 				if (m_osd.start(m_videoDevice, m_mainConfig.getValue(kConfigOsdFontPath), m_mainConfig.getValue(kConfigOsdOrigFontSize, 0)))
 				{
-					const int highHeight = m_config[VideoHigh].getValue(kConfigHeight, 0);
-					const int lowHeight  = m_config[VideoLow].getValue(kConfigHeight, 0);
-					const int lowHighMultiplier = lowHeight > 0 && highHeight > lowHeight
-						? highHeight / lowHeight
-						: 1;
-
 					m_osd.setOsdText(newSharedConfig->osdText);
-					m_osd.setPos(m_videoDevice, newSharedConfig->osdFontSize, newSharedConfig->osdX, 
-						newSharedConfig->osdY, lowHighMultiplier);
+					m_osd.setPos(m_videoDevice, 
+						newSharedConfig->osdFontSizeHigh, newSharedConfig->osdFontSizeLow,
+						newSharedConfig->osdXHigh, newSharedConfig->osdYHigh,
+						newSharedConfig->osdXLow, newSharedConfig->osdYLow);
 
 					m_osd.setColor(newSharedConfig->osdFrontColor, newSharedConfig->osdBackColor, 
 						newSharedConfig->osdEdgeColor, newSharedConfig->osdAlpha);
@@ -977,4 +995,15 @@ void* AnykaCameraManager::thread(void*)
 	ak_thread_exit();
 
 	return NULL;
+}
+
+
+void AnykaCameraManager::abortIfNeed()
+{
+	if (m_abortOnError)
+	{
+		LOG(ERROR) << "Terminate program on error. Config param '" << kConfigAbortOnError <<"' set to 1\n";
+		fflush(stdout);
+		abort();
+	}
 }

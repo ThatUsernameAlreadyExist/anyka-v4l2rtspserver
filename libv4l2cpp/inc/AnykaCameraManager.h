@@ -115,6 +115,7 @@ private:
 	void startMotionDetection();
 	void startDayNight();
 
+	void abortIfNeed();
 
 private:
 	void *m_videoDevice;
@@ -134,6 +135,7 @@ private:
 	int m_motionCounter;
 	int m_motionDetectionFd;
 	flock m_motionDetectionLock;
+	bool m_abortOnError;
 
 };
 

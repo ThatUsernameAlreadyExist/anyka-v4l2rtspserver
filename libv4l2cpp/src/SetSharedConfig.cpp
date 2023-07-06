@@ -61,15 +61,18 @@ void usage(char *command)
     fprintf(stderr, "\t'q' config file path\n");
     fprintf(stderr, "\t'r' day to night AWB\n");
     fprintf(stderr, "\t'a' day to night lum\n");
-    fprintf(stderr, "\t'b' night ot day AWB\n");
-    fprintf(stderr, "\t'd' night ot day lum\n");
+    fprintf(stderr, "\t'b' night to day AWB\n");
+    fprintf(stderr, "\t'd' night to day lum\n");
     fprintf(stderr, "\t'e' ir cut on/off\n");
     fprintf(stderr, "\t'g' ir led on/off\n");
     fprintf(stderr, "\t'o' OSD text\n");
     fprintf(stderr, "\t'c' OSD front color\n");
-    fprintf(stderr, "\t's' OSD font size\n");
-    fprintf(stderr, "\t'x' OSD X pos\n");
-    fprintf(stderr, "\t'y' OSD Y pos\n");
+    fprintf(stderr, "\t's' OSD high font size\n");
+    fprintf(stderr, "\t'x' OSD high X pos\n");
+    fprintf(stderr, "\t'y' OSD high Y pos\n");
+    fprintf(stderr, "\t'z' OSD low font size\n");
+    fprintf(stderr, "\t'w' OSD low X pos\n");
+    fprintf(stderr, "\t't' OSD low Y pos\n");
     fprintf(stderr, "\t'h' OSD alpha\n");
     fprintf(stderr, "\t'i' OSD back color\n");
     fprintf(stderr, "\t'j' OSD edge color\n");
@@ -161,13 +164,22 @@ int main(int argc, char *argv[]) {
             SETGETSHAREDMEMORYINT(conf->osdFrontColor);
             break;
         case 's':
-            SETGETSHAREDMEMORYINT(conf->osdFontSize);
+            SETGETSHAREDMEMORYINT(conf->osdFontSizeHigh);
             break;
         case 'x':
-            SETGETSHAREDMEMORYINT(conf->osdX);
+            SETGETSHAREDMEMORYINT(conf->osdXHigh);
             break;
         case 'y':
-            SETGETSHAREDMEMORYINT(conf->osdY);
+            SETGETSHAREDMEMORYINT(conf->osdYHigh);
+            break;
+        case 'z':
+            SETGETSHAREDMEMORYINT(conf->osdFontSizeLow);
+            break;
+        case 'w':
+            SETGETSHAREDMEMORYINT(conf->osdXLow);
+            break;
+        case 't':
+            SETGETSHAREDMEMORYINT(conf->osdYLow);
             break;
         case 'h':
             SETGETSHAREDMEMORYINT(conf->osdAlpha);

@@ -25,9 +25,12 @@
 struct SharedConfig 
 {
     int nightmode;
-    int osdFontSize;
-    int osdX;
-    int osdY;
+    int osdFontSizeHigh;
+    int osdFontSizeLow;
+    int osdXHigh;
+    int osdYHigh;
+    int osdXLow;
+    int osdYLow;
     int osdFrontColor;
     int osdBackColor;
     int osdEdgeColor;

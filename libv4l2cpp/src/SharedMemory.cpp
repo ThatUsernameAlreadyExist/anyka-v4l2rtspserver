@@ -105,11 +105,14 @@ SharedMemory::SharedMemory()
     currentConfig.osdBackColor      = 0;
     currentConfig.osdEdgeColor      = 2;
     currentConfig.osdEnabled        = false;
-    currentConfig.osdFontSize       = 16;
     currentConfig.osdFrontColor     = 1;
     currentConfig.osdText[0]        = 0; 
-    currentConfig.osdX              = 10;
-    currentConfig.osdY              = 12;
+    currentConfig.osdFontSizeHigh   = 32;
+    currentConfig.osdXHigh          = 20;
+    currentConfig.osdYHigh          = 24;
+    currentConfig.osdFontSizeLow    = 16;
+    currentConfig.osdXLow           = 10;
+    currentConfig.osdYLow           = 12;
     currentConfig.videoDay          = true;
 
     keyImageMem  = ftok("/usr/", '1');

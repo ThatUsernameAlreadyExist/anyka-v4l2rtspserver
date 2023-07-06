@@ -157,11 +157,11 @@ void AnykaOsd::setColor(int frontColot, int backColor, int edgeColor, int alpha)
 }
 
 
-void AnykaOsd::setPos(void *videoDevice, int fontSize, int x, int y, int lowHighMultiplier)
+void AnykaOsd::setPos(void *videoDevice, int fontSizeHigh, int fontSizeLow, int xHigh, int yHigh, int xLow, int yLow)
 {
-    const int fSize[2] = {fontSize * lowHighMultiplier, fontSize};
-    const int posX[2]  = {x * lowHighMultiplier, x};
-    const int posY[2]  = {x * lowHighMultiplier, y};
+    const int fSize[2] = {fontSizeHigh, fontSizeLow};
+    const int posX[2]  = {(xHigh / 2) * 2, (xLow / 2) * 2};
+    const int posY[2]  = {(yHigh / 2) * 2, (yLow / 2) * 2};
 
     for (int i = 0; i < 2; ++i) 
     {
@@ -172,7 +172,7 @@ void AnykaOsd::setPos(void *videoDevice, int fontSize, int x, int y, int lowHigh
         {
             ak_osd_set_font_size(i, fSize[i]);
 
-            const int width  = maxW - x;
+            const int width  = maxW;
 		    const int height = fSize[i] * 2;
 
             if (width > 0 && ak_osd_set_rect(videoDevice, i, 0, posX[i], posY[i], width, height) == AK_SUCCESS)
