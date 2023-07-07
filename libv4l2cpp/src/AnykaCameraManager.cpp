@@ -543,8 +543,8 @@ bool AnykaCameraManager::initAudioDevice()
 
 bool AnykaCameraManager::setAudioParams()
 {
-	ak_ai_set_aec(m_audioDevice, AUDIO_FUNC_DISABLE);
-	ak_ai_set_nr_agc(m_audioDevice, AUDIO_FUNC_DISABLE);
+	ak_ai_set_aec(m_audioDevice, AUDIO_FUNC_ENABLE);
+	ak_ai_set_nr_agc(m_audioDevice, AUDIO_FUNC_ENABLE);
 	ak_ai_set_resample(m_audioDevice, AUDIO_FUNC_DISABLE);
 
 	const int volume = m_mainConfig.getValue(kConfigVolume, 10); //0 - 12, 0 - mute
