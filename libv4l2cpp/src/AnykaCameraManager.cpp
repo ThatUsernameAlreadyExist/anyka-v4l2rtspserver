@@ -20,6 +20,7 @@ extern "C"
 {
 	#include "ak_vi.h"
 	#include "ak_ai.h"
+	#include "ak_ao.h"
 	#include "ak_common.h"
 }
 
@@ -228,6 +229,25 @@ static void updateDefaultConfig(const std::shared_ptr<ConfigFile> &config)
 }
 
 
+static void clearAudioOutput()
+{
+	struct pcm_param param = {0};
+	param.sample_bits = 16;
+	param.channel_num = AUDIO_CHANNEL_MONO;
+	param.sample_rate = 8000;
+
+	void *handle = ak_ao_open(&param);
+	if (handle != NULL) 
+	{
+		ak_ao_enable_speaker(handle, AUDIO_FUNC_ENABLE);
+		ak_ao_set_resample(handle, AUDIO_FUNC_DISABLE);
+		ak_ao_set_volume(handle, 6);
+		ak_ao_clear_frame_buffer(handle);
+		ak_ao_close(handle);
+	}
+}
+
+
 AnykaCameraManager::AnykaStream::AnykaStream()
 	: encoder(NULL)
 	, isActivated(false)
@@ -278,6 +298,7 @@ AnykaCameraManager::AnykaCameraManager()
 
 	m_abortOnError = m_mainConfig.getValue(kConfigAbortOnError, 0) != 0;
 
+	clearAudioOutput();
 	initVideoDevice();
 	initAudioDevice();
 }
