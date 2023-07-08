@@ -266,26 +266,21 @@ void V4L2DeviceSource::processFrame(const FrameRef &frame, const timeval &ref)
 // post a frame to fifo
 void V4L2DeviceSource::queueFrame(char * frame, int frameSize, const timeval &tv, const FrameRef &allocatedBuffer)
 {
-	size_t prevQueueSize = 0;
 	pthread_mutex_lock (&m_mutex);
 	while (m_captureQueue.size() >= m_queueSize)
 	{
-		LOG(DEBUG) << "Queue full size drop frame size:"  << (int)m_captureQueue.size() ;		
+		LOG(DEBUG) << "Queue full size drop frame size:"  << (int)m_captureQueue.size();		
 		m_captureQueue.pop_front();
 	}
 
-	prevQueueSize = m_captureQueue.size();
 	m_captureQueue.emplace_back(frame, frameSize, tv, allocatedBuffer);	
+
+	m_queuedFramesCount = m_captureQueue.size();
 
 	pthread_mutex_unlock (&m_mutex);
 
-	m_queuedFramesCount = prevQueueSize + 1;
-	
 	// post an event to ask to deliver the frame
-	if (prevQueueSize == 0)
-	{
-		envir().taskScheduler().triggerEvent(m_eventTriggerId, this);
-	}
+	envir().taskScheduler().triggerEvent(m_eventTriggerId, this);
 }
 
 

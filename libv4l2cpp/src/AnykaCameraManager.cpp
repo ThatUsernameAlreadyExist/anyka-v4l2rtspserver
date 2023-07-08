@@ -41,6 +41,7 @@ const std::string kConfigBps	     	 = "bps";
 const std::string kConfigProfile     	 = "profile";
 const std::string kConfigBrMode      	 = "brmode";
 const std::string kConfigJpgFps      	 = "jpegfps";
+const std::string kConfigJpgStreamId     = "jpegstream";
 const std::string kConfigOsdFontPath	 = "osdfontpath";
 const std::string kConfigOsdOrigFontSize = "origosdfontsize";
 const std::string kConfigOsdFontSize     = "osdfontsize";
@@ -93,6 +94,7 @@ const std::map<std::string, std::string> kDefaultMainConfig
 	{kConfigSensor    	    , "/etc/jffs2/isp_f23_mipi2lane.conf"},
 	{kConfigFps	   	  	    , "25"},
 	{kConfigJpgFps          , "1"},
+	{kConfigJpgStreamId     , "1"},
 	{kConfigVolume    	    , "10"},
 	{kConfigChannels  	    , "1"},
 	{kConfigSampleRate	    , "8000"},
@@ -198,7 +200,7 @@ std::map<std::string, StreamId> kStreamNames
 };
 
 const int kSharedConfUpdateCount = 100;
-const int kMaxMotionCount = 25;
+const int kMaxMotionCount = 200;
 const char* kDefaultConfigName = "anykacam.ini";
 const FrameRef kEmptyFrameRef;
 const size_t kMaxVideoBufferSize = 512 * 1024;
@@ -789,7 +791,9 @@ audio_param AnykaCameraManager::getAudioEncodeParams(size_t streamId)
 
 VideoEncodeParam AnykaCameraManager::getJpegEncodeParams()
 {
-	VideoEncodeParam param 	= getVideoEncodeParams(VideoLow); // Use jpeg from low stream.
+	VideoEncodeParam param 	= getVideoEncodeParams(m_mainConfig.getValue(kConfigJpgStreamId, 1) == 0
+		? VideoHigh
+		: VideoLow);
 
 	param.videoParams.fps 			= m_mainConfig.getValue(kConfigJpgFps, 1);
 	param.videoParams.enc_out_type 	= MJPEG_ENC_TYPE;
