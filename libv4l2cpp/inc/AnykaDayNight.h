@@ -39,10 +39,11 @@ public:
     void start(void *videoDevice, int minDayToNightLum, int minNightToDayLum, int maxDayToNightAwb, int minNightToDayAwb);
     void stop();
     void setMode(Mode mode);
-    void setVideo(bool isDay);
+    bool setVideoDay(bool isDay);
     void setIrLed(bool enable);
     void setIrCut(bool enable);
     void setPrintInfo(bool enable);
+    void resetCurrentAutoStatus();
 
 private:
     void setDay();

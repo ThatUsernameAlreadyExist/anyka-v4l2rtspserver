@@ -76,6 +76,8 @@ const std::string kConfigSmartQuality    = "smartquality";
 const std::string kConfigSmartStatic     = "smartstatic";
 const std::string kConfigMaxKbps    	 = "maxkbps";
 const std::string kConfigTargetKbps      = "targetkbps";
+const std::string kConfigMotionUpdateCnt = "mdupdatecounter";
+const std::string kConfigUpdateCnt  	 = "configupdatecounter";
 
 
 const std::map<int, int> kAkCodecToFormatMap
@@ -124,6 +126,8 @@ const std::map<std::string, std::string> kDefaultMainConfig
 	{kConfigDayNightAwb		, "90000"},
 	{kConfigNightDayAwb		, "1200"},
 	{kConfigAbortOnError    , "0"},
+	{kConfigMotionUpdateCnt , "200"},
+	{kConfigUpdateCnt       , "250"},
 };
 
 
@@ -199,8 +203,7 @@ std::map<std::string, StreamId> kStreamNames
 	{"audio1", AudioLow},
 };
 
-const int kSharedConfUpdateCount = 100;
-const int kMaxMotionCount = 200;
+
 const char* kDefaultConfigName = "anykacam.ini";
 const FrameRef kEmptyFrameRef;
 const size_t kMaxVideoBufferSize = 512 * 1024;
@@ -263,8 +266,10 @@ AnykaCameraManager::AnykaCameraManager()
 	, m_threadStopFlag(false)
 	, m_currentSharedConfig({0})
 	, m_sharedConfUpdateCounter(-1)
+	, m_maxSharedConfUpdateCounter(250)
 	, m_lastMotionDetected(false)
 	, m_motionCounter(0)
+	, m_maxMotionCounter(200)
 	, m_motionDetectionFd(-1)
 	, m_abortOnError(false)
 {
@@ -299,6 +304,8 @@ AnykaCameraManager::AnykaCameraManager()
 	m_mainConfig.init(config, std::string());
 
 	m_abortOnError = m_mainConfig.getValue(kConfigAbortOnError, 0) != 0;
+	m_maxSharedConfUpdateCounter = m_mainConfig.getValue(kConfigUpdateCnt, m_maxSharedConfUpdateCounter);
+	m_maxMotionCounter = m_mainConfig.getValue(kConfigMotionUpdateCnt, m_maxMotionCounter);
 
 	clearAudioOutput();
 	initVideoDevice();
@@ -693,7 +700,7 @@ void AnykaCameraManager::startDayNight()
 	{
 		m_dayNight.setIrCut(m_mainConfig.getValue(kConfigIrCut, 0) == 1);
 		m_dayNight.setIrLed(m_mainConfig.getValue(kConfigIrLed, 0) == 1);
-		m_dayNight.setVideo(m_mainConfig.getValue(kConfigVideoDay, 0) == 1);
+		m_dayNight.setVideoDay(m_mainConfig.getValue(kConfigVideoDay, 0) == 1);
 	}
 }
 
@@ -806,32 +813,46 @@ VideoEncodeParam AnykaCameraManager::getJpegEncodeParams()
 
 void AnykaCameraManager::processThread()
 {
-	if (start())
+	// Wait to prevent frequent reinit when adding new streams and restarting thread at program start.
+	for (size_t i = 0; i < 50; ++i)
 	{
-		while (!m_threadStopFlag)
+		if (m_threadStopFlag)
 		{
-			const bool isStreamsEncoded = processEncoding();
-			const bool isJpegEncoded    = processJpeg();
-
-			if (isStreamsEncoded || isJpegEncoded)
-			{
-				ak_sleep_ms(1);
-			}
-			else
-			{
-				ak_sleep_ms(10);
-			}
-
-			m_osd.update();
-			processMotionDetection();
-			processSharedConfig();
+			break;
 		}
 
-		stop();
+		ak_sleep_ms(20);
 	}
-	else
+
+	if (!m_threadStopFlag)
 	{
-		abortIfNeed();
+		if (start())
+		{
+			while (!m_threadStopFlag)
+			{
+				const bool isStreamsEncoded = processEncoding();
+				const bool isJpegEncoded    = processJpeg();
+
+				if (isStreamsEncoded || isJpegEncoded)
+				{
+					ak_sleep_ms(1);
+				}
+				else
+				{
+					ak_sleep_ms(10);
+				}
+
+				m_osd.update();
+				processMotionDetection();
+				processSharedConfig();
+			}
+
+			stop();
+		}
+		else
+		{
+			abortIfNeed();
+		}
 	}
 }
 
@@ -875,9 +896,11 @@ bool AnykaCameraManager::processJpeg()
 
 void AnykaCameraManager::processSharedConfig()
 {
-	if (m_sharedConfUpdateCounter++ > kSharedConfUpdateCount)
+	if (m_sharedConfUpdateCounter++ > m_maxSharedConfUpdateCounter)
 	{
 		m_sharedConfUpdateCounter = 0;
+
+		bool canUpdateCurrentConfig = true;
 
 		const SharedConfig *newSharedConfig = SharedMemory::instance().readConfig();
 
@@ -912,16 +935,19 @@ void AnykaCameraManager::processSharedConfig()
 		if (newSharedConfig->irCut != m_currentSharedConfig.irCut)
 		{
 			m_dayNight.setIrCut(newSharedConfig->irCut);
+			m_dayNight.resetCurrentAutoStatus();
 		}
 
 		if (newSharedConfig->irLed != m_currentSharedConfig.irLed)
 		{
 			m_dayNight.setIrLed(newSharedConfig->irLed);
+			m_dayNight.resetCurrentAutoStatus();
 		}
 
 		if (newSharedConfig->videoDay != m_currentSharedConfig.videoDay)
 		{
-			m_dayNight.setVideo(newSharedConfig->videoDay);
+			canUpdateCurrentConfig &= m_dayNight.setVideoDay(newSharedConfig->videoDay);
+			m_dayNight.resetCurrentAutoStatus();
 		}
 
 		if (newSharedConfig->osdEnabled 	 != m_currentSharedConfig.osdEnabled ||
@@ -957,7 +983,10 @@ void AnykaCameraManager::processSharedConfig()
 			}
 		}
 
-		memcpy(&m_currentSharedConfig, newSharedConfig, sizeof(m_currentSharedConfig));
+		if (canUpdateCurrentConfig)
+		{
+			memcpy(&m_currentSharedConfig, newSharedConfig, sizeof(m_currentSharedConfig));
+		}
 	}
 }
 
@@ -974,7 +1003,7 @@ void AnykaCameraManager::processMotionDetection()
 
 		m_motionCounter = 0;
 	}
-	else if (m_lastMotionDetected && m_motionCounter++ > kMaxMotionCount)
+	else if (m_lastMotionDetected && m_motionCounter++ > m_maxMotionCounter)
 	{
 		m_lastMotionDetected = false;
 		m_motionCounter = 0;

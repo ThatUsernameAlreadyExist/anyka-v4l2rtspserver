@@ -131,8 +131,10 @@ private:
 	AnykaDayNight m_dayNight;
 	SharedConfig m_currentSharedConfig;
 	int m_sharedConfUpdateCounter;
+	int m_maxSharedConfUpdateCounter;
 	bool m_lastMotionDetected;
 	int m_motionCounter;
+	int m_maxMotionCounter;
 	int m_motionDetectionFd;
 	flock m_motionDetectionLock;
 	bool m_abortOnError;

@@ -21,9 +21,11 @@ extern "C"
 #include "logger.h"
 
 
-#define IRCUT_A_FILE_NAME "/sys/user-gpio/gpio-ircut_a"
-#define IRCUT_B_FILE_NAME "/sys/user-gpio/gpio-ircut_b"
-#define IRLED_FILE_NAME   "/sys/user-gpio/ir-led"
+#define IRCUT_A_FILE_NAME    "/sys/user-gpio/gpio-ircut_a"
+#define IRCUT_B_FILE_NAME    "/sys/user-gpio/gpio-ircut_b"
+#define IRLED_FILE_NAME      "/sys/user-gpio/ir-led"
+#define IRCUR_STATUS_FILE    "/var/run/ircut"
+#define VIDEODAY_STATUS_FILE "/var/run/vday"
 
 
 static bool writeFlagToFile(const char *name, bool enable)
@@ -106,7 +108,7 @@ void AnykaDayNight::setMode(Mode mode)
 
 void AnykaDayNight::setDay()
 {
-    setVideo(true);
+    setVideoDay(true);
     setIrLed(false);
     setIrCut(true);
     m_dayStatus = 1;
@@ -115,22 +117,31 @@ void AnykaDayNight::setDay()
 
 void AnykaDayNight::setNight()
 {
-    setVideo(false);
+    setVideoDay(false);
     setIrLed(true);
     setIrCut(false);
     m_dayStatus = 0;
 }
 
 
-void AnykaDayNight::setVideo(bool isDay)
+bool AnykaDayNight::setVideoDay(bool isDay)
 {
+    bool retVal = false;
+
     if (m_videoDevice != NULL)
     {
-        if (ak_vi_switch_mode(m_videoDevice, isDay ? VI_MODE_DAY : VI_MODE_NIGHT) != AK_SUCCESS)
+        if (ak_vi_switch_mode(m_videoDevice, isDay ? VI_MODE_DAY : VI_MODE_NIGHT) == AK_SUCCESS)
+        {
+            retVal = true;
+            writeFlagToFile(VIDEODAY_STATUS_FILE, isDay);
+        }
+        else
         {
             LOG(ERROR)<<"ak_vi_switch_mode failed";
         }
     }
+
+    return retVal;
 }
 
 
@@ -153,7 +164,11 @@ void AnykaDayNight::setIrCut(bool enable)
 
     isSuccess = writeFlagToFile(IRCUT_A_FILE_NAME, false) && writeFlagToFile(IRCUT_B_FILE_NAME, false) && isSuccess;
 
-    if (!isSuccess)
+    if (isSuccess)
+    {
+        writeFlagToFile(IRCUR_STATUS_FILE, enable);
+    }
+    else
     {
         LOG(ERROR)<<"write "<<IRCUT_A_FILE_NAME<<" "<<IRCUT_B_FILE_NAME<<" failed";
     }
@@ -163,6 +178,12 @@ void AnykaDayNight::setIrCut(bool enable)
 void AnykaDayNight::setPrintInfo(bool enable)
 {
     m_printInfo = enable;
+}
+
+
+void AnykaDayNight::resetCurrentAutoStatus()
+{
+    m_dayStatus = -1;
 }
 
 
