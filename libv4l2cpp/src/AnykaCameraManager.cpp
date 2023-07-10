@@ -78,6 +78,7 @@ const std::string kConfigMaxKbps    	 = "maxkbps";
 const std::string kConfigTargetKbps      = "targetkbps";
 const std::string kConfigMotionUpdateCnt = "mdupdatecounter";
 const std::string kConfigUpdateCnt  	 = "configupdatecounter";
+const std::string kConfigPreferShared    = "prefersharedconfig";
 
 
 const std::map<int, int> kAkCodecToFormatMap
@@ -128,6 +129,7 @@ const std::map<std::string, std::string> kDefaultMainConfig
 	{kConfigAbortOnError    , "0"},
 	{kConfigMotionUpdateCnt , "200"},
 	{kConfigUpdateCnt       , "250"},
+	{kConfigPreferShared    , "0"},
 };
 
 
@@ -272,13 +274,14 @@ AnykaCameraManager::AnykaCameraManager()
 	, m_maxMotionCounter(200)
 	, m_motionDetectionFd(-1)
 	, m_abortOnError(false)
+	, m_preferSharedConfig(false)
 {
 	LOG(DEBUG)<<"AnykaCameraManager construct";
 
 	ak_print_set_level(LOG_LEVEL_NOTICE);
 
 	const SharedConfig *newSharedConfig = SharedMemory::instance().readConfig();
-	memcpy(&m_currentSharedConfig, newSharedConfig, sizeof(m_currentSharedConfig));
+	updateCurrentSharedConfig(newSharedConfig);
 
 	std::shared_ptr<ConfigFile> config = std::make_shared<ConfigFile>(
 		newSharedConfig->configFilePath[0] != 0
@@ -303,9 +306,10 @@ AnykaCameraManager::AnykaCameraManager()
 
 	m_mainConfig.init(config, std::string());
 
-	m_abortOnError = m_mainConfig.getValue(kConfigAbortOnError, 0) != 0;
+	m_abortOnError               = m_mainConfig.getValue(kConfigAbortOnError, 0) != 0;
 	m_maxSharedConfUpdateCounter = m_mainConfig.getValue(kConfigUpdateCnt, m_maxSharedConfUpdateCounter);
-	m_maxMotionCounter = m_mainConfig.getValue(kConfigMotionUpdateCnt, m_maxMotionCounter);
+	m_maxMotionCounter           = m_mainConfig.getValue(kConfigMotionUpdateCnt, m_maxMotionCounter);
+	m_preferSharedConfig         = m_mainConfig.getValue(kConfigPreferShared, 0) != 0;
 
 	clearAudioOutput();
 	initVideoDevice();
@@ -628,10 +632,10 @@ bool AnykaCameraManager::start()
 			{
 				LOG(ERROR)<<"can't init jpeg stream";
 			}
-
-			startDayNight();
-			startOsd();
-			startMotionDetection();
+			
+			initFromConfig(m_preferSharedConfig 
+				? SharedMemory::instance().readConfig()
+				: NULL);
 		}
 		else
 		{
@@ -644,64 +648,104 @@ bool AnykaCameraManager::start()
 }
 
 
-void AnykaCameraManager::startOsd()
+void AnykaCameraManager::initFromConfig(const SharedConfig *sharedConf)
 {
-	if (m_mainConfig.getValue(kConfigOsdEnabled, 0) != 0)
+	startOsd(sharedConf);
+	startMotionDetection(sharedConf);
+	startDayNight(sharedConf);
+
+	updateCurrentSharedConfig(sharedConf);
+}
+
+
+void AnykaCameraManager::startOsd(const SharedConfig *sharedConf)
+{
+	const bool enabled 	   = sharedConf ? sharedConf->osdEnabled	       : m_mainConfig.getValue(kConfigOsdEnabled, 0) != 0;
+	const std::string text = sharedConf ? std::string(sharedConf->osdText) : m_mainConfig.getValue(kConfigOsdText);
+
+	if (enabled && !text.empty())
 	{
 		if (m_osd.start(m_videoDevice, m_mainConfig.getValue(kConfigOsdFontPath), m_mainConfig.getValue(kConfigOsdOrigFontSize, 0)))
 		{
-			m_osd.setOsdText(m_mainConfig.getValue(kConfigOsdText));
-			m_osd.setPos(m_videoDevice,  
-				m_config[VideoHigh].getValue(kConfigOsdFontSize, 0), m_config[VideoLow].getValue(kConfigOsdFontSize, 0),
-				m_config[VideoHigh].getValue(kConfigOsdX, 0), m_config[VideoHigh].getValue(kConfigOsdY, 0),
-				m_config[VideoLow].getValue(kConfigOsdX, 0),  m_config[VideoLow].getValue(kConfigOsdY, 0));
+			const int fontSizeHigh = sharedConf ? sharedConf->osdFontSizeHigh : m_config[VideoHigh].getValue(kConfigOsdFontSize, 0);  
+			const int fontSizeLow  = sharedConf ? sharedConf->osdFontSizeLow  : m_config[VideoLow].getValue(kConfigOsdFontSize, 0);    
+			const int xHigh 	   = sharedConf ? sharedConf->osdXHigh        : m_config[VideoHigh].getValue(kConfigOsdX, 0);
+			const int yHigh 	   = sharedConf ? sharedConf->osdYHigh        : m_config[VideoHigh].getValue(kConfigOsdY, 0);   
+			const int xLow 	       = sharedConf ? sharedConf->osdXLow         : m_config[VideoLow].getValue(kConfigOsdX, 0);   
+			const int yLow 		   = sharedConf ? sharedConf->osdYLow         : m_config[VideoLow].getValue(kConfigOsdY, 0);   
+			const int frontColor   = sharedConf ? sharedConf->osdFrontColor   : m_mainConfig.getValue(kConfigOsdFrontColor, 0);      
+			const int backColor    = sharedConf ? sharedConf->osdBackColor    : m_mainConfig.getValue(kConfigOsdBackColor, 0);            
+			const int edgeColor    = sharedConf ? sharedConf->osdEdgeColor    : m_mainConfig.getValue(kConfigOsdEdgeColor, 0);       
+			const int alpha 	   = sharedConf ? sharedConf->osdAlpha        : m_mainConfig.getValue(kConfigOsdAlpha, 0);    
 
-			m_osd.setColor(m_mainConfig.getValue(kConfigOsdFrontColor, 0), m_mainConfig.getValue(kConfigOsdBackColor, 0), 
-				m_mainConfig.getValue(kConfigOsdEdgeColor, 0), m_mainConfig.getValue(kConfigOsdAlpha, 0));
+			m_osd.setOsdText(text);
+			m_osd.setPos(m_videoDevice, fontSizeHigh, fontSizeLow, xHigh, yHigh, xLow,  yLow);
+			m_osd.setColor(frontColor, backColor, edgeColor, alpha);
 		}
 		else
 		{
 			LOG(ERROR)<<"can't init OSD";
 		}
 	}
+	else
+	{
+		m_osd.stop();
+	}
 }
 
 
-void AnykaCameraManager::startMotionDetection()
+void AnykaCameraManager::startMotionDetection(const SharedConfig *sharedConf)
 {
-	if (m_mainConfig.getValue(kConfigMdEnabled, 0) != 0)
+	const bool enabled = sharedConf ? sharedConf->motionEnabled     : m_mainConfig.getValue(kConfigMdEnabled, 0) != 0;
+	const int sens     = sharedConf ? sharedConf->motionSensitivity : m_mainConfig.getValue(kConfigMdSensitivity, 0);
+
+	if (enabled && sens > 0)
 	{
 		if (!m_motionDetect.start(m_videoDevice, 
-				m_mainConfig.getValue(kConfigMdSensitivity, 0), m_mainConfig.getValue(kConfigMdFps, 0),
+				sens, m_mainConfig.getValue(kConfigMdFps, 0),
 				m_mainConfig.getValue(kConfigMdX, 0), m_mainConfig.getValue(kConfigMdY, 0), 
 				m_mainConfig.getValue(kConfigMdWidth, 0), m_mainConfig.getValue(kConfigMdHeight, 0)))
 		{
 			LOG(ERROR)<<"can't init Motion detection";
 		}
 	}
+	else
+	{
+		m_motionDetect.stop();
+	}
 }
 
 
-void AnykaCameraManager::startDayNight()
+bool AnykaCameraManager::startDayNight(const SharedConfig *sharedConf)
 {
-	m_dayNight.start(m_videoDevice, 
-		m_mainConfig.getValue(kConfigDayNightLum, 0),
-		m_mainConfig.getValue(kConfigNightDayLum, 0),
-		m_mainConfig.getValue(kConfigDayNightAwb, 0),
-		m_mainConfig.getValue(kConfigNightDayAwb, 0));
+	bool retVal = true;
 
-	m_dayNight.setPrintInfo(m_mainConfig.getValue(kConfigDayNightInfo, 0) == 1);
+	const int minDayToNightLum = sharedConf ? sharedConf->dayNightLum : m_mainConfig.getValue(kConfigDayNightLum, 0);
+	const int minNightToDayLum = sharedConf ? sharedConf->nightDayLum : m_mainConfig.getValue(kConfigNightDayLum, 0);
+	const int maxDayToNightAwb = sharedConf ? sharedConf->dayNightAwb : m_mainConfig.getValue(kConfigDayNightAwb, 0);
+	const int minNightToDayAwb = sharedConf ? sharedConf->nightDayAwb : m_mainConfig.getValue(kConfigNightDayAwb, 0); 
 
-	const AnykaDayNight::Mode mode = (AnykaDayNight::Mode)m_mainConfig.getValue(kConfigDayNightMode, 0);
+	m_dayNight.start(m_videoDevice, minDayToNightLum, minNightToDayLum, maxDayToNightAwb, minNightToDayAwb);
+	m_dayNight.setPrintInfo(m_mainConfig.getValue(kConfigDayNightInfo, 0) != 0);
+
+	const AnykaDayNight::Mode mode = sharedConf ? (AnykaDayNight::Mode)sharedConf->nightmode : (AnykaDayNight::Mode)m_mainConfig.getValue(kConfigDayNightMode, 0);
 	
 	m_dayNight.setMode(mode);
 
 	if (mode == AnykaDayNight::Disabled)
 	{
-		m_dayNight.setIrCut(m_mainConfig.getValue(kConfigIrCut, 0) == 1);
-		m_dayNight.setIrLed(m_mainConfig.getValue(kConfigIrLed, 0) == 1);
-		m_dayNight.setVideoDay(m_mainConfig.getValue(kConfigVideoDay, 0) == 1);
+		const bool irCut = sharedConf ? sharedConf->irCut    : m_mainConfig.getValue(kConfigIrCut, 0)    != 0;
+		const bool irLed = sharedConf ? sharedConf->irLed    : m_mainConfig.getValue(kConfigIrLed, 0)    != 0;
+		const bool vDay  = sharedConf ? sharedConf->videoDay : m_mainConfig.getValue(kConfigVideoDay, 0) != 0;
+		
+		m_dayNight.setIrCut(irCut);
+		m_dayNight.setIrLed(irLed);
+		retVal = m_dayNight.setVideoDay(vDay);
+
+		m_dayNight.resetCurrentAutoStatus();
 	}
+
+	return retVal;
 }
 
 
@@ -904,89 +948,53 @@ void AnykaCameraManager::processSharedConfig()
 
 		const SharedConfig *newSharedConfig = SharedMemory::instance().readConfig();
 
-		if (newSharedConfig->nightmode   != m_currentSharedConfig.nightmode ||
+		if (newSharedConfig->nightmode   != m_currentSharedConfig.nightmode   ||
 			newSharedConfig->dayNightAwb != m_currentSharedConfig.dayNightAwb ||
 			newSharedConfig->dayNightLum != m_currentSharedConfig.dayNightLum ||
 			newSharedConfig->nightDayAwb != m_currentSharedConfig.nightDayAwb ||
-			newSharedConfig->nightDayLum != m_currentSharedConfig.nightDayLum)
+			newSharedConfig->nightDayLum != m_currentSharedConfig.nightDayLum ||
+			newSharedConfig->irCut 	     != m_currentSharedConfig.irCut       ||
+			newSharedConfig->irLed       != m_currentSharedConfig.irLed       ||
+			newSharedConfig->videoDay    != m_currentSharedConfig.videoDay)
 		{
-			m_dayNight.start(m_videoDevice, newSharedConfig->dayNightLum, newSharedConfig->nightDayLum,
-				newSharedConfig->dayNightAwb, newSharedConfig->nightDayAwb);
-
-			m_dayNight.setMode((AnykaDayNight::Mode)newSharedConfig->nightmode);
+			canUpdateCurrentConfig &= startDayNight(newSharedConfig);
 		}
 
-		if (newSharedConfig->motionEnabled != m_currentSharedConfig.motionEnabled ||
+		if (newSharedConfig->motionEnabled     != m_currentSharedConfig.motionEnabled ||
 			newSharedConfig->motionSensitivity != m_currentSharedConfig.motionSensitivity)
 		{
-			if (newSharedConfig->motionEnabled)
-			{
-				m_motionDetect.start(m_videoDevice, newSharedConfig->motionSensitivity,
-					m_mainConfig.getValue(kConfigMdFps, 0),
-					m_mainConfig.getValue(kConfigMdX, 0), m_mainConfig.getValue(kConfigMdY, 0), 
-					m_mainConfig.getValue(kConfigMdWidth, 0), m_mainConfig.getValue(kConfigMdHeight, 0));
-			}
-			else
-			{
-				m_motionDetect.stop();
-			}
+			startMotionDetection(newSharedConfig);
 		}
 
-		if (newSharedConfig->irCut != m_currentSharedConfig.irCut)
-		{
-			m_dayNight.setIrCut(newSharedConfig->irCut);
-			m_dayNight.resetCurrentAutoStatus();
-		}
-
-		if (newSharedConfig->irLed != m_currentSharedConfig.irLed)
-		{
-			m_dayNight.setIrLed(newSharedConfig->irLed);
-			m_dayNight.resetCurrentAutoStatus();
-		}
-
-		if (newSharedConfig->videoDay != m_currentSharedConfig.videoDay)
-		{
-			canUpdateCurrentConfig &= m_dayNight.setVideoDay(newSharedConfig->videoDay);
-			m_dayNight.resetCurrentAutoStatus();
-		}
-
-		if (newSharedConfig->osdEnabled 	 != m_currentSharedConfig.osdEnabled ||
-			newSharedConfig->osdAlpha 		 != m_currentSharedConfig.osdAlpha ||
-			newSharedConfig->osdBackColor 	 != m_currentSharedConfig.osdBackColor ||
-			newSharedConfig->osdEdgeColor 	 != m_currentSharedConfig.osdEdgeColor ||
-			newSharedConfig->osdFrontColor 	 != m_currentSharedConfig.osdFrontColor ||
+		if (newSharedConfig->osdEnabled 	 != m_currentSharedConfig.osdEnabled      ||
+			newSharedConfig->osdAlpha 		 != m_currentSharedConfig.osdAlpha        ||
+			newSharedConfig->osdBackColor 	 != m_currentSharedConfig.osdBackColor    ||
+			newSharedConfig->osdEdgeColor 	 != m_currentSharedConfig.osdEdgeColor    ||
+			newSharedConfig->osdFrontColor 	 != m_currentSharedConfig.osdFrontColor   ||
 			newSharedConfig->osdFontSizeHigh != m_currentSharedConfig.osdFontSizeHigh ||
-			newSharedConfig->osdXHigh 	     != m_currentSharedConfig.osdXHigh ||
-			newSharedConfig->osdYHigh		 != m_currentSharedConfig.osdYHigh ||
-			newSharedConfig->osdFontSizeLow  != m_currentSharedConfig.osdFontSizeLow ||
-			newSharedConfig->osdXLow	     != m_currentSharedConfig.osdXLow ||
-			newSharedConfig->osdYLow		 != m_currentSharedConfig.osdYLow ||
+			newSharedConfig->osdXHigh 	     != m_currentSharedConfig.osdXHigh        ||
+			newSharedConfig->osdYHigh		 != m_currentSharedConfig.osdYHigh        ||
+			newSharedConfig->osdFontSizeLow  != m_currentSharedConfig.osdFontSizeLow  ||
+			newSharedConfig->osdXLow	     != m_currentSharedConfig.osdXLow         ||
+			newSharedConfig->osdYLow		 != m_currentSharedConfig.osdYLow         ||
 			strncmp(newSharedConfig->osdText, m_currentSharedConfig.osdText, MAX_STR_SIZE) != 0)
 		{
-			if (newSharedConfig->osdEnabled && newSharedConfig->osdText[0] != 0)
-			{
-				if (m_osd.start(m_videoDevice, m_mainConfig.getValue(kConfigOsdFontPath), m_mainConfig.getValue(kConfigOsdOrigFontSize, 0)))
-				{
-					m_osd.setOsdText(newSharedConfig->osdText);
-					m_osd.setPos(m_videoDevice, 
-						newSharedConfig->osdFontSizeHigh, newSharedConfig->osdFontSizeLow,
-						newSharedConfig->osdXHigh, newSharedConfig->osdYHigh,
-						newSharedConfig->osdXLow, newSharedConfig->osdYLow);
-
-					m_osd.setColor(newSharedConfig->osdFrontColor, newSharedConfig->osdBackColor, 
-						newSharedConfig->osdEdgeColor, newSharedConfig->osdAlpha);
-				}
-			}
-			else
-			{
-				m_osd.stop();
-			}
+			startOsd(newSharedConfig);
 		}
 
 		if (canUpdateCurrentConfig)
 		{
-			memcpy(&m_currentSharedConfig, newSharedConfig, sizeof(m_currentSharedConfig));
+			updateCurrentSharedConfig(newSharedConfig);
 		}
+	}
+}
+
+
+void AnykaCameraManager::updateCurrentSharedConfig(const SharedConfig *sharedConf)
+{
+	if (sharedConf != NULL)
+	{
+		memcpy(&m_currentSharedConfig, sharedConf, sizeof(m_currentSharedConfig));
 	}
 }
 

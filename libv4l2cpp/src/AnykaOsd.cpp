@@ -149,9 +149,9 @@ void AnykaOsd::setOsdText(const std::string &text)
 }
 
 
-void AnykaOsd::setColor(int frontColot, int backColor, int edgeColor, int alpha)
+void AnykaOsd::setColor(int frontColor, int backColor, int edgeColor, int alpha)
 {
-    ak_osd_set_color(frontColot, backColor);
+    ak_osd_set_color(frontColor, backColor);
     ak_osd_set_edge_color(edgeColor);
     ak_osd_set_alpha(alpha);
 }

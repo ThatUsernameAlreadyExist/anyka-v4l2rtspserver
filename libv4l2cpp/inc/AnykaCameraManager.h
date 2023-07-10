@@ -111,10 +111,11 @@ private:
 	void writeMotionDetectionFlag(bool isMotionDetected);
 	static void* thread(void *arg);
 
-	void startOsd();
-	void startMotionDetection();
-	void startDayNight();
-
+	void initFromConfig(const SharedConfig *sharedConf);
+	void startOsd(const SharedConfig *sharedConf);
+	void startMotionDetection(const SharedConfig *sharedConf);
+	bool startDayNight(const SharedConfig *sharedConf);
+	void updateCurrentSharedConfig(const SharedConfig *sharedConf);
 	void abortIfNeed();
 
 private:
@@ -138,6 +139,7 @@ private:
 	int m_motionDetectionFd;
 	flock m_motionDetectionLock;
 	bool m_abortOnError;
+	bool m_preferSharedConfig;
 
 };
 

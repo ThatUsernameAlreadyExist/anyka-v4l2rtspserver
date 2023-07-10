@@ -26,9 +26,11 @@ extern "C"
 #define IRLED_FILE_NAME      "/sys/user-gpio/ir-led"
 #define IRCUR_STATUS_FILE    "/var/run/ircut"
 #define VIDEODAY_STATUS_FILE "/var/run/vday"
+#define LUM_VALUE_FILE       "/var/run/lum"
+#define AWB_VALUE_FILE       "/var/run/awb"
 
 
-static bool writeFlagToFile(const char *name, bool enable)
+static bool writeIntToFile(const char *name, int value)
 {
     bool retVal = false;
 
@@ -36,13 +38,17 @@ static bool writeFlagToFile(const char *name, bool enable)
 
     if (pFile != NULL)
     {
-        const char val = enable ? '1' : '0';
-        retVal = std::fwrite(&val, sizeof(char), 1, pFile) == 1;
-
+        retVal = fprintf(pFile, "%d", value) > 0; 
         std::fclose(pFile);
     }  
 
     return retVal;
+}
+
+
+static bool writeFlagToFile(const char *name, bool enable)
+{
+    return writeIntToFile(name, enable ? 1 : 0);
 }
 
 
@@ -220,23 +226,26 @@ void AnykaDayNight::printCurrentAutoParams()
         struct vpss_isp_awb_stat_info infoPre;
         struct vpss_isp_awb_stat_info infoCur;
 
-        if (ak_vpss_isp_get_awb_stat_info(m_videoDevice, &infoPre) != AK_SUCCESS) 
+        if (ak_vpss_isp_get_awb_stat_info(m_videoDevice, &infoPre) == AK_SUCCESS &&
+            ak_vpss_isp_get_awb_stat_info(m_videoDevice, &infoCur) == AK_SUCCESS) 
         {
-            LOG(ALERT)<<"ak_vpss_isp_get_awb_stat_info 1 failed";
+            writeIntToFile(LUM_VALUE_FILE, ak_vpss_isp_get_cur_lumi());
+
+            int maxAwb = 0;
+            for (size_t i = 0; i < 10; i++) 
+            {
+                const int totalCnt = (infoPre.total_cnt[i] + infoCur.total_cnt[i]) / 2;
+                if (totalCnt > maxAwb)
+                {
+                    maxAwb = totalCnt;
+                }
+            }
+
+            writeIntToFile(AWB_VALUE_FILE, maxAwb);
         }
-
-        if (ak_vpss_isp_get_awb_stat_info(m_videoDevice, &infoCur) != AK_SUCCESS)
+        else
         {
-            LOG(ALERT)<<"ak_vpss_isp_get_awb_stat_info 2 failed";
-        }
-
-        LOG(ALERT)<<"Current auto day/night mode values";
-        LOG(ALERT)<<"    Lum: "<<ak_vpss_isp_get_cur_lumi();
-
-        for (size_t i = 0; i < 10; i++) 
-        {
-            unsigned int totalCnt = (infoPre.total_cnt[i] + infoCur.total_cnt[i]) / 2;
-            LOG(ALERT)<<"    AWB: "<< i << " - "<<totalCnt;
+            LOG(ERROR)<<"ak_vpss_isp_get_awb_stat_info failed";
         }
     }
 }
@@ -245,6 +254,9 @@ void AnykaDayNight::printCurrentAutoParams()
 void AnykaDayNight::processAutoModeThread()
 {
     ak_vpss_isp_clean_auto_day_night_param();
+
+    // In NIGHT mode: if 'cur lum' < 'm_minNightToDayLum' && 'max cur awb' > 'm_minNightToDayAwb' => transit to DAY
+    // In DAY mode  : if 'cur lum' > 'm_minDayToNightLum" && 'max cur awb' < 'm_maxDayToNightAwb' => transit to NIGHT
 
     struct ak_auto_day_night_threshold threshold;
     threshold.day_to_night_lum = m_minDayToNightLum;

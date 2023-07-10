@@ -25,7 +25,7 @@ public:
     void stop();
 
     void setOsdText(const std::string &text);
-    void setColor(int frontColot, int backColor, int edgeColor, int alpha);
+    void setColor(int frontColor, int backColor, int edgeColor, int alpha);
     void setPos(void *videoDevice, int fontSizeHigh, int fontSizeLow, int xHigh, int yHigh, int xLow, int yLow);
 
     void update();
