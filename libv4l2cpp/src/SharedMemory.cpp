@@ -90,7 +90,6 @@ SharedMemory::SharedMemory()
     , configReadLock("/tmp/config.lock", false)
     , configWriteLock("/tmp/config.lock", true)
 {
-    currentConfig.nightmode         = 2;
     currentConfig.configFilePath[0] = 0;
     currentConfig.dayNightAwb       = 9000;
     currentConfig.dayNightLum       = 6000;
@@ -114,6 +113,7 @@ SharedMemory::SharedMemory()
     currentConfig.osdXLow           = 10;
     currentConfig.osdYLow           = 12;
     currentConfig.videoDay          = true;
+    currentConfig.imageFlip         = 0;
 
     keyImageMem  = ftok("/usr/", '1');
     keyConfigMem = ftok("/usr/", '3');

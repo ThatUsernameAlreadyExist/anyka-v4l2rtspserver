@@ -126,7 +126,7 @@ int main(int argc, char *argv[]) {
 
      switch (key) {
         case 'f':
-            //TODO: flip
+            SETGETSHAREDMEMORYINT(conf->imageFlip);
             break;
         case 'n':
             SETGETSHAREDMEMORYINT(conf->nightmode);

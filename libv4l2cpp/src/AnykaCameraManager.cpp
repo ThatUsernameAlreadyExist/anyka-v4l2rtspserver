@@ -79,7 +79,7 @@ const std::string kConfigTargetKbps      = "targetkbps";
 const std::string kConfigMotionUpdateCnt = "mdupdatecounter";
 const std::string kConfigUpdateCnt  	 = "configupdatecounter";
 const std::string kConfigPreferShared    = "prefersharedconfig";
-
+const std::string kConfigImageFlip       = "imageflip";
 
 const std::map<int, int> kAkCodecToFormatMap
 {
@@ -130,6 +130,7 @@ const std::map<std::string, std::string> kDefaultMainConfig
 	{kConfigMotionUpdateCnt , "200"},
 	{kConfigUpdateCnt       , "250"},
 	{kConfigPreferShared    , "0"},
+	{kConfigImageFlip       , "0"},
 };
 
 
@@ -210,6 +211,8 @@ const char* kDefaultConfigName = "anykacam.ini";
 const FrameRef kEmptyFrameRef;
 const size_t kMaxVideoBufferSize = 512 * 1024;
 const size_t kMaxAudioBufferSize = 8 * 1024;
+const int kFlipImageFlag   = 1;
+const int kMirrorImageFlag = 2;
 
 static void updateDefaultConfigSection(const std::shared_ptr<ConfigFile> &config, 
 	const std::map<std::string, std::string> &defConfig, const std::string &section)
@@ -650,6 +653,7 @@ bool AnykaCameraManager::start()
 
 void AnykaCameraManager::initFromConfig(const SharedConfig *sharedConf)
 {
+	flipImage(sharedConf);
 	startOsd(sharedConf);
 	startMotionDetection(sharedConf);
 	startDayNight(sharedConf);
@@ -746,6 +750,19 @@ bool AnykaCameraManager::startDayNight(const SharedConfig *sharedConf)
 	}
 
 	return retVal;
+}
+
+
+void AnykaCameraManager::flipImage(const SharedConfig *sharedConf)
+{
+	const int flipValue = sharedConf ? sharedConf->imageFlip : m_mainConfig.getValue(kConfigImageFlip, 0);
+
+	if (ak_vi_set_flip_mirror(m_videoDevice, 
+			(int) ((flipValue & kFlipImageFlag)   == kFlipImageFlag),
+			(int) ((flipValue & kMirrorImageFlag) == kMirrorImageFlag)) != AK_SUCCESS)
+	{
+		LOG(ERROR) << "Can't flip/mirror image\n";
+	}
 }
 
 
@@ -980,6 +997,11 @@ void AnykaCameraManager::processSharedConfig()
 			strncmp(newSharedConfig->osdText, m_currentSharedConfig.osdText, MAX_STR_SIZE) != 0)
 		{
 			startOsd(newSharedConfig);
+		}
+
+		if (newSharedConfig->imageFlip != m_currentSharedConfig.imageFlip)
+		{
+			flipImage(newSharedConfig);
 		}
 
 		if (canUpdateCurrentConfig)

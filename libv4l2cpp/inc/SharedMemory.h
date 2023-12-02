@@ -40,6 +40,7 @@ struct SharedConfig
     int nightDayLum;
     int dayNightAwb;
     int nightDayAwb;
+    int imageFlip;
     bool osdEnabled;
     bool motionEnabled;
     bool irLed;

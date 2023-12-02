@@ -115,6 +115,7 @@ private:
 	void startOsd(const SharedConfig *sharedConf);
 	void startMotionDetection(const SharedConfig *sharedConf);
 	bool startDayNight(const SharedConfig *sharedConf);
+	void flipImage(const SharedConfig *sharedConf);
 	void updateCurrentSharedConfig(const SharedConfig *sharedConf);
 	void abortIfNeed();
 
