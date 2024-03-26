@@ -13,6 +13,7 @@
 #include "logger.h"
 #include <linux/videodev2.h>
 #include "AnykaAudioEncoder.h"
+#include "FileFinder.h"
 #include <algorithm>
 #include <map>
 
@@ -94,7 +95,7 @@ const std::map<int, int> kAkCodecToFormatMap
 
 const std::map<std::string, std::string> kDefaultMainConfig
 {
-	{kConfigSensor    	    , "/etc/jffs2/isp_f23_mipi2lane.conf"},
+	{kConfigSensor    	    , "/etc/jffs2/isp_*.conf"},
 	{kConfigFps	   	  	    , "25"},
 	{kConfigJpgFps          , "1"},
 	{kConfigJpgStreamId     , "1"},
@@ -474,20 +475,42 @@ FrameRef AnykaCameraManager::getEncodedFrame(size_t streamId)
 
 bool AnykaCameraManager::initVideoDevice()
 {
-	if (ak_vi_match_sensor(m_mainConfig.getValue(kConfigSensor).c_str()) == AK_SUCCESS)
-	{
-		LOG(NOTICE)<<"ak_vi_match_sensor success";
-		m_videoDevice = ak_vi_open(VIDEO_DEV0);
+	FileFinder configFinder;
 
-		if (m_videoDevice == NULL)
+	const std::vector<const char*> &sensorConfigs = configFinder.findByMask(m_mainConfig.getValue(kConfigSensor));
+
+	if (sensorConfigs.size() > 0)
+	{
+		for (const char* sensorConfig : sensorConfigs)
 		{
-			abortIfNeed();
+			if (sensorConfig != NULL && ak_vi_match_sensor(sensorConfig) == AK_SUCCESS)
+			{
+				LOG(NOTICE)<<"ak_vi_match_sensor success: "<<sensorConfig;
+
+				m_videoDevice = ak_vi_open(VIDEO_DEV0);
+
+				if (m_videoDevice != NULL)
+				{
+					break;
+				}
+				else
+				{
+					LOG(ERROR)<<"ak_vi_open failed";
+				}
+			}
+			else
+			{
+				LOG(ERROR)<<"ak_vi_match_sensor failed: "<<sensorConfig;
+			}
 		}
 	}
 	else
 	{
-		LOG(ERROR)<<"ak_vi_match_sensor failed";
+		LOG(ERROR)<<"Can't find sensor config files by mask: "<<m_mainConfig.getValue(kConfigSensor);
+	}
 
+	if (m_videoDevice == NULL)
+	{
 		abortIfNeed();
 	}
 }
