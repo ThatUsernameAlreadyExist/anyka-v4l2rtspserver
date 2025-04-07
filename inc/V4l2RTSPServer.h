@@ -59,7 +59,7 @@ class V4l2RTSPServer {
             return result;
         }
 
-        void eventLoop(char * stop) {
+        void eventLoop(EventLoopWatchVariable * stop) {
             m_env->taskScheduler().doEventLoop(stop); 
         }
 
@@ -243,8 +243,8 @@ class V4l2RTSPServer {
         }
 
     protected:
-        char              m_stop;
-        UsageEnvironment* m_env;	
-        RTSPServer*       m_rtspServer;
-        int               m_rtspPort;
+        EventLoopWatchVariable m_stop;
+        UsageEnvironment*      m_env;	
+        RTSPServer*            m_rtspServer;
+        int                    m_rtspPort;
 };
