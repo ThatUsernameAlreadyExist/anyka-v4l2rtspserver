@@ -38,7 +38,7 @@
 // -----------------------------------------
 //    signal handler
 // -----------------------------------------
-char quit = 0;
+EventLoopWatchVariable quit(0);
 void sighandler(int n)
 { 
 	printf("SIGINT\n");
